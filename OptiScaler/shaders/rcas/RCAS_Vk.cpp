@@ -11,7 +11,7 @@ RCAS_Vk::RCAS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysi
         return;
     }
 
-    LOG_DEBUG("RCAS_Vk::RCAS_Vk");
+    LOG_DEBUG();
 
     CreateDescriptorSetLayout();
     CreateConstantBuffer();
@@ -27,7 +27,7 @@ RCAS_Vk::RCAS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysi
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     vkCreateSampler(_device, &samplerInfo, nullptr, &_nearestSampler);
 
-    std::vector<char> shaderCode(RCAS_spv, RCAS_spv + sizeof(RCAS_spv));
+    std::vector<char> shaderCode(rcas_spv, rcas_spv + sizeof(rcas_spv));
     if (!CreateComputePipeline(_device, _pipelineLayout, &_pipeline, shaderCode))
     {
         LOG_ERROR("Failed to create pipeline for RCAS_Vk");
@@ -293,8 +293,8 @@ bool RCAS_Vk::Dispatch(VkDevice InDevice, VkCommandBuffer InCmdList, RcasConstan
                             &_descriptorSets[_currentSetIndex], 0, nullptr);
 
     // Dispatch
-    uint32_t groupX = (OutExtent.width + 31) / 32;
-    uint32_t groupY = (OutExtent.height + 31) / 32;
+    uint32_t groupX = (OutExtent.width + 15) / 16;
+    uint32_t groupY = (OutExtent.height + 15) / 16;
     vkCmdDispatch(InCmdList, groupX, groupY, 1);
 
     return true;

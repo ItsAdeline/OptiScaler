@@ -1,7 +1,11 @@
 // Based on this Reshade shader
 // https://github.com/RdenBlaauwen/RCAS-for-ReShade
 
+#ifdef VK_MODE
 cbuffer Params : register(b0, space0)
+#else
+cbuffer Params : register(b0)
+#endif
 {
     float Sharpness;
     float Contrast;
@@ -21,11 +25,19 @@ cbuffer Params : register(b0, space0)
     int DisplayHeight;
 };
 
+#ifdef VK_MODE
 [[vk::binding(1, 0)]]
+#endif
 Texture2D<float3> Source : register(t0);
+
+#ifdef VK_MODE
 [[vk::binding(2, 0)]]
+#endif
 Texture2D<float2> Motion : register(t1);
+
+#ifdef VK_MODE
 [[vk::binding(3, 0)]]
+#endif
 RWTexture2D<float3> Dest : register(u0);
 
 float getRCASLuma(float3 rgb)
@@ -33,7 +45,7 @@ float getRCASLuma(float3 rgb)
     return dot(rgb, float3(0.5, 1.0, 0.5));
 }
 
-[numthreads(32, 32, 1)]
+[numthreads(16, 16, 1)]
 void CSMain(uint3 DTid : SV_DispatchThreadID)
 {
     float setSharpness = Sharpness;

@@ -25,8 +25,8 @@ class DepthTransfer_Dx11
     ID3D11Texture2D* _currentInResource = nullptr;
     ID3D11Texture2D* _currentOutResource = nullptr;
 
-    uint32_t InNumThreadsX = 512;
-    uint32_t InNumThreadsY = 1;
+    uint32_t InNumThreadsX = 16;
+    uint32_t InNumThreadsY = 16;
 
     bool InitializeViews(ID3D11Texture2D* InResource, ID3D11Texture2D* OutResource);
 

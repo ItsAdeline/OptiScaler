@@ -39,8 +39,8 @@ class RCAS_Dx12 : public Shader_Dx12
     ID3D12Resource* _buffer = nullptr;
     D3D12_RESOURCE_STATES _bufferState = D3D12_RESOURCE_STATE_COMMON;
 
-    uint32_t InNumThreadsX = 32;
-    uint32_t InNumThreadsY = 32;
+    uint32_t InNumThreadsX = 16;
+    uint32_t InNumThreadsY = 16;
 
   public:
     bool CreateBufferResource(ID3D12Device* InDevice, ID3D12Resource* InSource, D3D12_RESOURCE_STATES InState);

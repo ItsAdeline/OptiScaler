@@ -45,8 +45,8 @@ class RCAS_Dx11
     ID3D11Texture2D* _currentMotionVectors = nullptr;
     ID3D11Texture2D* _currentOutResource = nullptr;
 
-    uint32_t InNumThreadsX = 32;
-    uint32_t InNumThreadsY = 32;
+    uint32_t InNumThreadsX = 16;
+    uint32_t InNumThreadsY = 16;
 
     bool InitializeViews(ID3D11Texture2D* InResource, ID3D11Texture2D* InMotionVectors, ID3D11Texture2D* OutResource);
 

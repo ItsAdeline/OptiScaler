@@ -52,6 +52,8 @@ REM Prompt user to select a filename for OptiScaler
 :selectFilename
 echo.
 echo Choose a filename for OptiScaler (default is dxgi.dll, most compatible):
+echo (For Vulkan, use winmm.dll. For XGP/MS Store, winmm/version.dll may be better)
+echo.
 echo  [1] dxgi.dll
 echo  [2] winmm.dll
 echo  [3] version.dll

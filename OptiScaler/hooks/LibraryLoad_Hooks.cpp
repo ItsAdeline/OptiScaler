@@ -567,7 +567,7 @@ std::optional<NTSTATUS> LibraryLoadHooks::FreeLibrary(PVOID lpLibrary)
 
 HMODULE LibraryLoadHooks::LoadNvApi()
 {
-    LOG_DEBUG();
+    LOG_FUNC();
 
     HMODULE nvapi = nullptr;
 

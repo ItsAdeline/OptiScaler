@@ -12,7 +12,7 @@ RCAS_Vk::RCAS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysi
         return;
     }
 
-    LOG_DEBUG();
+    LOG_FUNC();
 
     CreateDescriptorSetLayout();
     CreateConstantBuffer();

@@ -619,7 +619,7 @@ bool XeFG_Dx12::Shutdown()
 
 bool XeFG_Dx12::Dispatch()
 {
-    LOG_DEBUG();
+    LOG_FUNC();
 
     UINT64 willDispatchFrame = 0;
     auto fIndex = GetDispatchIndex(willDispatchFrame);

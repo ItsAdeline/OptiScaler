@@ -28,7 +28,7 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
         return;
     }
 
-    LOG_DEBUG();
+    LOG_FUNC();
 
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

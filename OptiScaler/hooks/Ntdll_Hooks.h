@@ -159,7 +159,7 @@ class NtdllHooks
   public:
     static void Hook()
     {
-        LOG_DEBUG();
+        LOG_FUNC();
 
         if (!Config::Instance()->UseNtdllHooks.value_or_default())
             return;

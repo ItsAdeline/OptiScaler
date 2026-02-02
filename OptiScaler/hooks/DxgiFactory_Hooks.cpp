@@ -42,7 +42,7 @@ void DxgiFactoryHooks::HookToFactory(IDXGIFactory* pFactory)
     if (pFactory == nullptr)
         return;
 
-    LOG_DEBUG();
+    LOG_FUNC();
 
     IDXGIFactory* real = nullptr;
     if (!Util::CheckForRealObject(__FUNCTION__, pFactory, (IUnknown**) &real))

@@ -923,7 +923,7 @@ static void HookToDevice(ID3D12Device* InDevice)
 
 static void UnhookDevice()
 {
-    LOG_DEBUG();
+    LOG_FUNC();
 
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());

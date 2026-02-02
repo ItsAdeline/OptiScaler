@@ -459,7 +459,7 @@ static Fsr3::FfxErrorCode hkffxGetFrameinterpolationCommandlistDX12(Fsr3::FfxSwa
 
 static Fsr3::FfxResource hkffxGetFrameinterpolationTextureDX12(Fsr3::FfxSwapchain gameSwapChain)
 {
-    LOG_DEBUG();
+    LOG_FUNC();
 
     auto fg = State::Instance().currentFG;
 

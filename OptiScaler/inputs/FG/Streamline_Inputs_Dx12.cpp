@@ -257,7 +257,7 @@ bool Sl_Inputs_Dx12::evaluateState(ID3D12Device* device)
     if (fgOutput == nullptr)
         return false;
 
-    LOG_DEBUG();
+    LOG_FUNC();
 
     static UINT64 lastFrameCount = 0;
     static UINT64 repeatsInRow = 0;
@@ -426,7 +426,7 @@ bool Sl_Inputs_Dx12::reportResource(const sl::ResourceTag& tag, ID3D12GraphicsCo
 
 bool Sl_Inputs_Dx12::dispatchFG()
 {
-    LOG_DEBUG();
+    LOG_FUNC();
     return true;
 }
 

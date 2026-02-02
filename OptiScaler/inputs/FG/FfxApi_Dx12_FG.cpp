@@ -761,7 +761,7 @@ ffxReturnCode_t ffxQuery_Dx12FG(ffxContext* context, ffxQueryDescHeader* desc)
     return PASSTHRU_RETURN_CODE;
 #endif
 
-    LOG_DEBUG();
+    LOG_FUNC();
 
     if (desc->type == FFX_API_QUERY_DESC_TYPE_FRAMEGENERATION_GPU_MEMORY_USAGE)
     {

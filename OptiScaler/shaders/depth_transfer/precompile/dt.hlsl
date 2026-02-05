@@ -1,4 +1,11 @@
+#ifdef VK_MODE
+[[vk::binding(0, 0)]]
+#endif
 Texture2D<float> SourceTexture : register(t0);
+
+#ifdef VK_MODE
+[[vk::binding(1, 0)]]
+#endif
 RWTexture2D<float> DestinationTexture : register(u0);
 
 // Shader to perform the conversion

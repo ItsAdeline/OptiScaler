@@ -108,12 +108,11 @@ bool XeSSFeature_Vk::Init(VkInstance InInstance, VkPhysicalDevice InPD, VkDevice
 
     {
         ScopedSkipSpoofing skipSpoofing {};
-
         auto ret = XeSSProxy::VKCreateContext()(InInstance, InPD, InDevice, &_xessContext);
 
         if (ret != XESS_RESULT_SUCCESS)
         {
-            LOG_ERROR("xessD3D12CreateContext error: {0}", ResultToString(ret));
+            LOG_ERROR("VKCreateContext error: {0}", ResultToString(ret));
             return false;
         }
 
@@ -261,7 +260,7 @@ bool XeSSFeature_Vk::Init(VkInstance InInstance, VkPhysicalDevice InPD, VkDevice
 
         if (ret != XESS_RESULT_SUCCESS)
         {
-            LOG_ERROR("xessD3D12Init error: {0}", ResultToString(ret));
+            LOG_ERROR("VKInit error: {0}", ResultToString(ret));
             return false;
         }
 

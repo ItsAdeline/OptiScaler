@@ -4,6 +4,10 @@
 
 #include <detours/detours.h>
 
+#include <string>
+#include <algorithm>
+#include <cctype>
+
 typedef HRESULT (*PFN_GetDesc)(IDXGIAdapter* This, DXGI_ADAPTER_DESC* pDesc);
 typedef HRESULT (*PFN_GetDesc1)(IDXGIAdapter1* This, DXGI_ADAPTER_DESC1* pDesc);
 typedef HRESULT (*PFN_GetDesc2)(IDXGIAdapter2* This, DXGI_ADAPTER_DESC2* pDesc);
@@ -13,6 +17,14 @@ inline static PFN_GetDesc o_GetDesc = nullptr;
 inline static PFN_GetDesc1 o_GetDesc1 = nullptr;
 inline static PFN_GetDesc2 o_GetDesc2 = nullptr;
 inline static PFN_GetDesc3 o_GetDesc3 = nullptr;
+
+inline static std::string toLower(std::string s)
+{
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+    return s;
+}
+
+inline static bool iequals(const std::string& a, const std::string& b) { return toLower(a) == toLower(b); }
 
 #pragma region DXGI Adapter methods
 
@@ -33,8 +45,16 @@ HRESULT DxgiSpoofing::hkGetDesc3(IDXGIAdapter4* This, DXGI_ADAPTER_DESC3* pDesc)
 {
     auto result = o_GetDesc3(This, pDesc);
 
+    auto caller = Util::WhoIsTheCaller(_ReturnAddress());
+
+    if (iequals(caller, "fakenvapi.dll") || iequals(caller, "vulkan-1.dll") || iequals(caller, "amdvlk64.dll") ||
+        iequals(caller, "dxgi.dll") || iequals(caller, "d3d12.dll") || iequals(caller, "d3d12Core.dll"))
+    {
+        return result;
+    }
+
 #if _DEBUG
-    LOG_TRACE("result: {:X}, caller: {}", (UINT) result, Util::WhoIsTheCaller(_ReturnAddress()));
+    LOG_TRACE("result: {:X}, caller: {}", (UINT) result, caller);
 #endif
 
     if (result == S_OK)
@@ -83,8 +103,16 @@ HRESULT DxgiSpoofing::hkGetDesc2(IDXGIAdapter2* This, DXGI_ADAPTER_DESC2* pDesc)
 {
     auto result = o_GetDesc2(This, pDesc);
 
+    auto caller = Util::WhoIsTheCaller(_ReturnAddress());
+
+    if (iequals(caller, "fakenvapi.dll") || iequals(caller, "vulkan-1.dll") || iequals(caller, "amdvlk64.dll") ||
+        iequals(caller, "dxgi.dll") || iequals(caller, "d3d12.dll") || iequals(caller, "d3d12Core.dll"))
+    {
+        return result;
+    }
+
 #if _DEBUG
-    LOG_TRACE("result: {:X}, caller: {}", (UINT) result, Util::WhoIsTheCaller(_ReturnAddress()));
+    LOG_TRACE("result: {:X}, caller: {}", (UINT) result, caller);
 #endif
 
     if (result == S_OK)
@@ -133,8 +161,16 @@ HRESULT DxgiSpoofing::hkGetDesc1(IDXGIAdapter1* This, DXGI_ADAPTER_DESC1* pDesc)
 {
     auto result = o_GetDesc1(This, pDesc);
 
+    auto caller = Util::WhoIsTheCaller(_ReturnAddress());
+
+    if (iequals(caller, "fakenvapi.dll") || iequals(caller, "vulkan-1.dll") || iequals(caller, "amdvlk64.dll") ||
+        iequals(caller, "dxgi.dll") || iequals(caller, "d3d12.dll") || iequals(caller, "d3d12Core.dll"))
+    {
+        return result;
+    }
+
 #if _DEBUG
-    LOG_TRACE("result: {:X}, caller: {}", (UINT) result, Util::WhoIsTheCaller(_ReturnAddress()));
+    LOG_TRACE("result: {:X}, caller: {}", (UINT) result, caller);
 #endif
 
     if (result == S_OK)
@@ -183,8 +219,16 @@ HRESULT DxgiSpoofing::hkGetDesc(IDXGIAdapter* This, DXGI_ADAPTER_DESC* pDesc)
 {
     auto result = o_GetDesc(This, pDesc);
 
+    auto caller = Util::WhoIsTheCaller(_ReturnAddress());
+
+    if (iequals(caller, "fakenvapi.dll") || iequals(caller, "vulkan-1.dll") || iequals(caller, "amdvlk64.dll") ||
+        iequals(caller, "dxgi.dll") || iequals(caller, "d3d12.dll") || iequals(caller, "d3d12Core.dll"))
+    {
+        return result;
+    }
+
 #if _DEBUG
-    LOG_TRACE("result: {:X}, caller: {}", (UINT) result, Util::WhoIsTheCaller(_ReturnAddress()));
+    LOG_TRACE("result: {:X}, caller: {}", (UINT) result, caller);
 #endif
 
     if (result == S_OK)

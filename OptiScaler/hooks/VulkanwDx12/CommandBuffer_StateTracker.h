@@ -16,8 +16,7 @@
 
 namespace vk_state
 {
-static constexpr uint32_t kMaxDescriptorSets =
-    32; // Increased from 8 to support more pipelines (Vulkan spec minimum is 4, typical is 32)
+static constexpr uint32_t kMaxDescriptorSets = 32;
 static constexpr uint32_t kMaxViewports = 16;
 static constexpr uint32_t kMaxScissors = 16;
 static constexpr uint32_t kMaxVertexBuffers = 32;      // Standard limit is often 32
@@ -234,7 +233,7 @@ class CommandBufferStateTracker
         if (_poolEpochs.find(pool) == _poolEpochs.end())
         {
             _poolEpochs[pool] = _globalEpochCounter;
-            LOG_DEBUG("Pool {:X} initialized with epoch {}", (size_t) pool, _globalEpochCounter);
+            // LOG_DEBUG("Pool {:X} initialized with epoch {}", (size_t) pool, _globalEpochCounter);
         }
 
         // Map each command buffer to its pool
@@ -243,8 +242,8 @@ class CommandBufferStateTracker
             _cmdBufferToPool[pCommandBuffers[i]] = pool;
         }
 
-        LOG_DEBUG("Allocated {} command buffers from pool {:X} (current pool epoch: {})", count, (size_t) pool,
-                  _poolEpochs[pool]);
+        // LOG_DEBUG("Allocated {} command buffers from pool {:X} (current pool epoch: {})", count, (size_t) pool,
+        //           _poolEpochs[pool]);
     }
 
     void OnBegin(VkCommandBuffer cmd, const VkCommandBufferBeginInfo* pBeginInfo)
@@ -322,9 +321,9 @@ class CommandBufferStateTracker
         _globalEpochCounter++;
         _poolEpochs[pool] = _globalEpochCounter;
 
-        LOG_DEBUG("Pool {:X} reset - pool epoch set to {} - command buffers from THIS POOL invalidated until next "
-                  "vkBeginCommandBuffer",
-                  (size_t) pool, _globalEpochCounter);
+        // LOG_DEBUG("Pool {:X} reset - pool epoch set to {} - command buffers from THIS POOL invalidated until next "
+        //           "vkBeginCommandBuffer",
+        //           (size_t) pool, _globalEpochCounter);
     }
 
     void OnBindPipeline(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint, VkPipeline pipeline)

@@ -5983,8 +5983,10 @@ void Vulkan_wDx12::hk_vkCmdDrawMeshTasksIndirectCountEXT(VkCommandBuffer command
 void Vulkan_wDx12::hk_vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount,
                                            const VkCommandBuffer* pCommandBuffers)
 {
+#ifdef LOG_ALL_RECORDS
     LOG_DEBUG("commandBuffer: {:X}, commandBufferCount: {}, pCommandBuffers: {:X}", (size_t) commandBuffer,
               commandBufferCount, (size_t) pCommandBuffers);
+#endif
 
     VkCommandBuffer cmdBuffer = commandBuffer;
 
@@ -6008,7 +6010,9 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit(VkQueue queue, uint32_t submitCount, VkS
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
+#ifdef LOG_ALL_RECORDS
     LOG_DEBUG("queue: {:X}, submitCount: {}, fence: {:X}", (size_t) queue, submitCount, (size_t) fence);
+#endif
 
     // for (size_t a = 0; a < submitCount; a++)
     //{

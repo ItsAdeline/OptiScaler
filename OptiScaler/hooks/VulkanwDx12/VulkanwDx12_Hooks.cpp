@@ -6014,55 +6014,6 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit(VkQueue queue, uint32_t submitCount, VkS
     LOG_DEBUG("queue: {:X}, submitCount: {}, fence: {:X}", (size_t) queue, submitCount, (size_t) fence);
 #endif
 
-    // for (size_t a = 0; a < submitCount; a++)
-    //{
-    //     LOG_DEBUG("  sType: {}", magic_enum::enum_name<VkStructureType>(pSubmits[a].sType));
-    //     LOG_DEBUG("  Submit[{}]: cmdBufferCount: {}", a, pSubmits[a].commandBufferCount);
-
-    //    for (size_t b = 0; b < pSubmits[a].commandBufferCount; b++)
-    //    {
-    //        LOG_DEBUG("    CmdBuffer[{}]: {:X}", b, (size_t) pSubmits[a].pCommandBuffers[b]);
-    //    }
-    //    LOG_DEBUG("    waitSemaphoreCount: {}", pSubmits[a].waitSemaphoreCount);
-    //    for (size_t c = 0; c < pSubmits[a].waitSemaphoreCount; c++)
-    //    {
-    //        LOG_DEBUG("    WaitSemaphore[{}]: {:X}", c, (size_t) pSubmits[a].pWaitSemaphores[c]);
-    //    }
-    //    LOG_DEBUG("    signalSemaphoreCount: {}", pSubmits[a].signalSemaphoreCount);
-    //    for (size_t d = 0; d < pSubmits[a].signalSemaphoreCount; d++)
-    //    {
-    //        LOG_DEBUG("    SignalSemaphore[{}]: {:X}", d, (size_t) pSubmits[a].pSignalSemaphores[d]);
-    //    }
-
-    //    LOG_DEBUG("    pNext chain:");
-    //    VkDummyProps* next = (VkDummyProps*) &pSubmits[a];
-    //    while (next->pNext != nullptr)
-    //    {
-    //        next = (VkDummyProps*) next->pNext;
-
-    //        if (next->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO)
-    //        {
-    //            LOG_DEBUG("      sType: VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO");
-    //            auto tlSemaphoreInfo = (VkTimelineSemaphoreSubmitInfo*) next;
-    //            LOG_DEBUG("        waitSemaphoreValueCount: {}", tlSemaphoreInfo->waitSemaphoreValueCount);
-    //            for (size_t e = 0; e < tlSemaphoreInfo->waitSemaphoreValueCount; e++)
-    //            {
-    //                LOG_DEBUG("          WaitSemaphoreValue[{}]: {}", e, tlSemaphoreInfo->pWaitSemaphoreValues[e]);
-    //            }
-    //            LOG_DEBUG("        signalSemaphoreValueCount: {}", tlSemaphoreInfo->signalSemaphoreValueCount);
-    //            for (size_t f = 0; f < tlSemaphoreInfo->signalSemaphoreValueCount; f++)
-    //            {
-    //                LOG_DEBUG("          SignalSemaphoreValue[{}]: {}", f,
-    //                tlSemaphoreInfo->pSignalSemaphoreValues[f]);
-    //            }
-    //        }
-    //        else
-    //        {
-    //            LOG_DEBUG("      sType: {}", (UINT) next->sType);
-    //        }
-    //    }
-    //}
-
     std::vector<VkSemaphore> semaphores;
     std::vector<VkSubmitInfo> submitInfos;
     std::vector<uint64_t> signalValues;

@@ -28,7 +28,7 @@ class IFeature_Dx12 : public virtual IFeature
 
     IFeature_Dx12(unsigned int InHandleId, NVSDK_NGX_Parameter* InParameters);
 
-    bool IsWithDx12() { return false; }
+    bool IsWithDx12() final { return false; }
 
     ~IFeature_Dx12();
 };

@@ -27,8 +27,8 @@ FSR31FeatureVkOn12::FSR31FeatureVkOn12(unsigned int InHandleId, NVSDK_NGX_Parame
         LOG_ERROR("can't load amd_fidelityfx_dx12.dll methods!");
 }
 
-bool FSR31FeatureVkOn12::Init(::VkInstance InInstance, ::VkPhysicalDevice InPD, ::VkDevice InDevice,
-                              ::VkCommandBuffer InCmdList, PFN_vkGetInstanceProcAddr InGIPA,
+bool FSR31FeatureVkOn12::Init(VkInstance InInstance, VkPhysicalDevice InPD, VkDevice InDevice,
+                              VkCommandBuffer InCmdList, PFN_vkGetInstanceProcAddr InGIPA,
                               PFN_vkGetDeviceProcAddr InGDPA, NVSDK_NGX_Parameter* InParameters)
 {
     LOG_FUNC();
@@ -47,7 +47,7 @@ bool FSR31FeatureVkOn12::Init(::VkInstance InInstance, ::VkPhysicalDevice InPD, 
     return _moduleLoaded;
 }
 
-bool FSR31FeatureVkOn12::Evaluate(::VkCommandBuffer InCmdBuffer, NVSDK_NGX_Parameter* InParameters)
+bool FSR31FeatureVkOn12::Evaluate(VkCommandBuffer InCmdBuffer, NVSDK_NGX_Parameter* InParameters)
 {
     LOG_FUNC();
 

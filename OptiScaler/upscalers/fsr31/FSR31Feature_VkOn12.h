@@ -20,11 +20,11 @@ class FSR31FeatureVkOn12 : public FSR31Feature, public IFeature_VkwDx12
 
     FSR31FeatureVkOn12(unsigned int InHandleId, NVSDK_NGX_Parameter* InParameters);
 
-    bool Init(::VkInstance InInstance, ::VkPhysicalDevice InPD, ::VkDevice InDevice, ::VkCommandBuffer InCmdList,
+    bool Init(VkInstance InInstance, VkPhysicalDevice InPD, VkDevice InDevice, VkCommandBuffer InCmdList,
               PFN_vkGetInstanceProcAddr InGIPA, PFN_vkGetDeviceProcAddr InGDPA,
               NVSDK_NGX_Parameter* InParameters) override;
 
-    bool Evaluate(::VkCommandBuffer InCmdBuffer, NVSDK_NGX_Parameter* InParameters) override;
+    bool Evaluate(VkCommandBuffer InCmdBuffer, NVSDK_NGX_Parameter* InParameters) override;
 
     ~FSR31FeatureVkOn12()
     {

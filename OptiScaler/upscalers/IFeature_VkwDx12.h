@@ -38,15 +38,15 @@ class IFeature_VkwDx12 : public virtual IFeature_Vk
     };
 
     // Vulkan context - renamed to avoid conflicts
-    ::VkDevice VulkanDevice = VK_NULL_HANDLE;
-    ::VkPhysicalDevice VulkanPhysicalDevice = VK_NULL_HANDLE;
-    ::VkInstance VulkanInstance = VK_NULL_HANDLE;
-    ::VkQueue VulkanGraphicsQueue = VK_NULL_HANDLE;
+    VkDevice VulkanDevice = VK_NULL_HANDLE;
+    VkPhysicalDevice VulkanPhysicalDevice = VK_NULL_HANDLE;
+    VkInstance VulkanInstance = VK_NULL_HANDLE;
+    VkQueue VulkanGraphicsQueue = VK_NULL_HANDLE;
+    VkCommandBuffer VulkanCopyCommandBuffer[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkCommandPool VulkanCopyCommandPool[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkCommandBuffer VulkanBarrierCommandBuffer[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkCommandPool VulkanBarrierCommandPool[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
     uint32_t VulkanQueueFamilyIndex = 0;
-    ::VkCommandBuffer VulkanCopyCommandBuffer[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-    ::VkCommandPool VulkanCopyCommandPool[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-    ::VkCommandBuffer VulkanBarrierCommandBuffer[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-    ::VkCommandPool VulkanBarrierCommandPool[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
 
     PFN_vkGetInstanceProcAddr VulkanGIPA = nullptr;
     PFN_vkGetDeviceProcAddr VulkanGDPA = nullptr;
@@ -67,8 +67,8 @@ class IFeature_VkwDx12 : public virtual IFeature_Vk
     VK_TEXTURE2D_RESOURCE_C vkOut = {};
 
     // Vulkan synchronization for texture copies - using shared fence pattern like Dx11wDx12
-    ::VkSemaphore vkSemaphoreTextureCopy[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-    ::VkSemaphore vkSemaphoreCopyBack[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkSemaphore vkSemaphoreTextureCopy[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkSemaphore vkSemaphoreCopyBack[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
     ID3D12Fence* dx12FenceTextureCopy[2] = { nullptr, nullptr };
     HANDLE vkSHForTextureCopy[2] = { nullptr, nullptr };
     ULONG _fenceValue = 0;
@@ -89,8 +89,6 @@ class IFeature_VkwDx12 : public virtual IFeature_Vk
     std::unique_ptr<ResourceCopy_Vk> OutCopy2 = nullptr;
 
     // Vulkan function pointers for external memory
-    // PFN_vkGetMemoryWin32HandleKHR vkGetMemoryWin32HandleKHR = nullptr;
-    // PFN_vkGetSemaphoreWin32HandleKHR vkGetSemaphoreWin32HandleKHR = nullptr;
     PFN_vkGetMemoryWin32HandlePropertiesKHR vkGetMemoryWin32HandlePropertiesKHR = nullptr;
     PFN_vkImportSemaphoreWin32HandleKHR vkImportSemaphoreWin32HandleKHR = nullptr;
 
@@ -101,41 +99,35 @@ class IFeature_VkwDx12 : public virtual IFeature_Vk
 
     bool CreateSharedTexture(const VkImageCreateInfo& ImageInfo, VkImage& VulkanResource, VkDeviceMemory& VulkanMemory,
                              ID3D12Resource*& D3D12Resource, bool InOutput);
-    bool CopyTextureFromVkToDx12(::VkCommandBuffer InCmdBuffer, NVSDK_NGX_Resource_VK* InParam,
+    bool CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSDK_NGX_Resource_VK* InParam,
                                  VK_TEXTURE2D_RESOURCE_C* OutResource, ResourceCopy_Vk* InCopyShader, bool InCopy);
-    bool ProcessVulkanTextures(::VkCommandBuffer InCmdList, const NVSDK_NGX_Parameter* InParameters);
+    bool ProcessVulkanTextures(VkCommandBuffer InCmdList, const NVSDK_NGX_Parameter* InParameters);
     bool CopyBackOutput();
-
-    // bool CopyVulkanImageToShared(::VkCommandBuffer InCmdBuffer, NVSDK_NGX_Resource_VK* InParam, ::VkImage
-    // InDestImage,
-    //                              bool IsDepth);
 
     void ResourceBarrier(ID3D12GraphicsCommandList* InCommandList, ID3D12Resource* InResource,
                          D3D12_RESOURCE_STATES InBeforeState, D3D12_RESOURCE_STATES InAfterState);
-
-    void ReleaseSharedResources();
-    void ReleaseSyncResources();
-
     void SetVkObjectName(VkDevice device, VkObjectType objectType, uint64_t objectHandle, const char* name);
+    uint32_t FindVulkanMemoryTypeIndex(uint32_t MemoryTypeBits, VkMemoryPropertyFlags PropertyFlags);
 
     bool LoadVulkanExternalMemoryFunctions();
     bool CreateVulkanCopyCommandBuffer();
     bool CreateSharedFenceSemaphore();
-    uint32_t FindVulkanMemoryTypeIndex(uint32_t MemoryTypeBits, VkMemoryPropertyFlags PropertyFlags);
+
+    void ReleaseSharedResources();
+    void ReleaseSyncResources();
 
   public:
-    virtual bool Init(::VkInstance InInstance, ::VkPhysicalDevice InPD, ::VkDevice InDevice,
-                      ::VkCommandBuffer InCmdList, PFN_vkGetInstanceProcAddr InGIPA, PFN_vkGetDeviceProcAddr InGDPA,
-                      NVSDK_NGX_Parameter* InParameters) = 0;
+    bool IsWithDx12() final { return true; }
 
-    virtual bool Evaluate(::VkCommandBuffer InCmdBuffer, NVSDK_NGX_Parameter* InParameters) = 0;
-
-    bool BaseInit(::VkInstance InInstance, ::VkPhysicalDevice InPD, ::VkDevice InDevice, ::VkCommandBuffer InCmdList,
+    bool BaseInit(VkInstance InInstance, VkPhysicalDevice InPD, VkDevice InDevice, VkCommandBuffer InCmdList,
                   PFN_vkGetInstanceProcAddr InGIPA, PFN_vkGetDeviceProcAddr InGDPA, NVSDK_NGX_Parameter* InParameters);
 
     IFeature_VkwDx12(unsigned int InHandleId, NVSDK_NGX_Parameter* InParameters);
-
-    bool IsWithDx12() { return true; }
-
     ~IFeature_VkwDx12();
+
+    virtual bool Init(VkInstance InInstance, VkPhysicalDevice InPD, VkDevice InDevice, VkCommandBuffer InCmdList,
+                      PFN_vkGetInstanceProcAddr InGIPA, PFN_vkGetDeviceProcAddr InGDPA,
+                      NVSDK_NGX_Parameter* InParameters) = 0;
+
+    virtual bool Evaluate(VkCommandBuffer InCmdBuffer, NVSDK_NGX_Parameter* InParameters) = 0;
 };

@@ -307,7 +307,6 @@ VkResult VulkanSpoofing::hkvkCreateInstance(VkInstanceCreateInfo* pCreateInfo, c
         LOG_DEBUG("  {}", pCreateInfo->ppEnabledLayerNames[i]);
 
 #ifdef VULKAN_DEBUG_LAYER
-    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
     debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
                                       VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
@@ -319,7 +318,9 @@ VkResult VulkanSpoofing::hkvkCreateInstance(VkInstanceCreateInfo* pCreateInfo, c
 
     debugCreateInfo.pfnUserCallback = &VulkanDebugCallback;
 
-    std::vector<const char*> newLayerList = { "VK_LAYER_KHRONOS_validation" };
+    static std::vector<const char*> newLayerList;
+    newLayerList.clear();
+    newLayerList.push_back("VK_LAYER_KHRONOS_validation");
 
     for (size_t i = 0; i < pCreateInfo->enabledLayerCount; i++)
         newLayerList.push_back(pCreateInfo->ppEnabledLayerNames[i]);

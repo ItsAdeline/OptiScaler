@@ -4,6 +4,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include <State.h>
+
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -13,6 +15,8 @@
 #include <optional>
 #include <algorithm>
 #include <bitset>
+
+#define LOW_PRECISION_TRACKING
 
 namespace vk_state
 {
@@ -127,6 +131,7 @@ struct DynamicState
     bool PrimitiveTopologySet = false;
     VkPrimitiveTopology PrimitiveTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
+#ifndef LOW_PRECISION_TRACKING
     bool DepthTestEnableSet = false;
     VkBool32 DepthTestEnable = VK_FALSE;
 
@@ -148,6 +153,7 @@ struct DynamicState
     VkStencilOp StencilPassOp = VK_STENCIL_OP_KEEP;
     VkStencilOp StencilDepthFailOp = VK_STENCIL_OP_KEEP;
     VkCompareOp StencilCompareOp = VK_COMPARE_OP_ALWAYS;
+#endif
 };
 
 struct VertexInputState
@@ -169,11 +175,13 @@ struct CommandBufferState
     uint32_t BeginFlags = 0;
     uint64_t BeginEpoch = 0; // Epoch when this command buffer was last begun
 
+#ifndef LOW_PRECISION_TRACKING
     std::unordered_map<VkImage, VkImageLayout> ImageLayouts;
 
     bool InRenderPass = false;
     VkRenderPass ActiveRenderPass = VK_NULL_HANDLE;
     VkFramebuffer ActiveFramebuffer = VK_NULL_HANDLE;
+#endif
 
     std::array<BindPointState, static_cast<uint32_t>(BindPointIndex::Count)> BP {};
     DynamicState Dyn {};
@@ -223,9 +231,14 @@ struct ReplayParams
 class CommandBufferStateTracker
 {
   public:
+    CommandBufferStateTracker() { _state = &State::Instance(); }
+
     // Call this when command buffers are allocated from a pool
     void OnAllocateCommandBuffers(VkCommandPool pool, uint32_t count, const VkCommandBuffer* pCommandBuffers)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
 
         // Initialize pool epoch ONLY if this is a truly new pool (not seen before)
@@ -248,6 +261,9 @@ class CommandBufferStateTracker
 
     void OnBegin(VkCommandBuffer cmd, const VkCommandBufferBeginInfo* pBeginInfo)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         const uint32_t flags = (pBeginInfo) ? pBeginInfo->flags : 0;
         std::scoped_lock lock(_mtx);
 
@@ -299,6 +315,9 @@ class CommandBufferStateTracker
 
     void OnEnd(VkCommandBuffer cmd)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto it = _states.find(cmd);
         if (it != _states.end() && it->second)
@@ -307,6 +326,9 @@ class CommandBufferStateTracker
 
     void OnReset(VkCommandBuffer cmd)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto it = _states.find(cmd);
         if (it != _states.end() && it->second)
@@ -315,6 +337,9 @@ class CommandBufferStateTracker
 
     void OnResetPool(VkCommandPool pool)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         // Invalidate only command buffers from this specific pool by incrementing its epoch
         std::scoped_lock lock(_mtx);
 
@@ -328,6 +353,9 @@ class CommandBufferStateTracker
 
     void OnBindPipeline(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint, VkPipeline pipeline)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -344,6 +372,9 @@ class CommandBufferStateTracker
                               uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets,
                               uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -420,6 +451,9 @@ class CommandBufferStateTracker
     void OnPushConstants(VkCommandBuffer cmd, VkPipelineBindPoint bindPoint, VkPipelineLayout layout,
                          VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size, const void* pValues)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -464,6 +498,9 @@ class CommandBufferStateTracker
 
     void OnSetViewport(VkCommandBuffer cmd, uint32_t first, uint32_t count, const VkViewport* pViewports)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         // Defensive: validate pointer when count > 0
         if (count > 0 && !pViewports)
         {
@@ -489,6 +526,9 @@ class CommandBufferStateTracker
 
     void OnSetScissor(VkCommandBuffer cmd, uint32_t first, uint32_t count, const VkRect2D* pScissors)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         // Defensive: validate pointer when count > 0
         if (count > 0 && !pScissors)
         {
@@ -515,6 +555,9 @@ class CommandBufferStateTracker
     void OnBindVertexBuffers(VkCommandBuffer cmd, uint32_t first, uint32_t count, const VkBuffer* pBuffers,
                              const VkDeviceSize* pOffsets)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         // Defensive: validate pointers when count > 0
         if (count > 0 && (!pBuffers || !pOffsets))
         {
@@ -542,6 +585,9 @@ class CommandBufferStateTracker
 
     void OnBindIndexBuffer(VkCommandBuffer cmd, VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -559,6 +605,10 @@ class CommandBufferStateTracker
                            const VkBufferMemoryBarrier* pBufferMemoryBarriers, uint32_t imageMemoryBarrierCount,
                            const VkImageMemoryBarrier* pImageMemoryBarriers)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -570,10 +620,14 @@ class CommandBufferStateTracker
             const auto& barrier = pImageMemoryBarriers[i];
             statePtr->ImageLayouts[barrier.image] = barrier.newLayout;
         }
+#endif
     }
 
     void OnSetCullMode(VkCommandBuffer cmd, VkCullModeFlags cullMode)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -585,6 +639,9 @@ class CommandBufferStateTracker
 
     void OnSetFrontFace(VkCommandBuffer cmd, VkFrontFace frontFace)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -596,6 +653,9 @@ class CommandBufferStateTracker
 
     void OnSetPrimitiveTopology(VkCommandBuffer cmd, VkPrimitiveTopology primitiveTopology)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -607,6 +667,10 @@ class CommandBufferStateTracker
 
     void OnSetDepthTestEnable(VkCommandBuffer cmd, VkBool32 depthTestEnable)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
@@ -614,99 +678,134 @@ class CommandBufferStateTracker
 
         statePtr->Dyn.DepthTestEnable = depthTestEnable;
         statePtr->Dyn.DepthTestEnableSet = true;
+#endif
     }
 
     void OnSetDepthWriteEnable(VkCommandBuffer cmd, VkBool32 depthWriteEnable)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
             statePtr = std::make_shared<CommandBufferState>();
-
         statePtr->Dyn.DepthWriteEnable = depthWriteEnable;
         statePtr->Dyn.DepthWriteEnableSet = true;
+#endif
     }
 
     void OnSetDepthCompareOp(VkCommandBuffer cmd, VkCompareOp depthCompareOp)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
             statePtr = std::make_shared<CommandBufferState>();
-
         statePtr->Dyn.DepthCompareOp = depthCompareOp;
         statePtr->Dyn.DepthCompareOpSet = true;
+#endif
     }
 
     void OnSetDepthBoundsTestEnable(VkCommandBuffer cmd, VkBool32 depthBoundsTestEnable)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
             statePtr = std::make_shared<CommandBufferState>();
-
         statePtr->Dyn.DepthBoundsTestEnable = depthBoundsTestEnable;
         statePtr->Dyn.DepthBoundsTestEnableSet = true;
+#endif
     }
 
     void OnSetStencilTestEnable(VkCommandBuffer cmd, VkBool32 stencilTestEnable)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
             statePtr = std::make_shared<CommandBufferState>();
-
         statePtr->Dyn.StencilTestEnable = stencilTestEnable;
         statePtr->Dyn.StencilTestEnableSet = true;
+#endif
     }
 
     void OnSetStencilOp(VkCommandBuffer cmd, VkStencilFaceFlags faceMask, VkStencilOp failOp, VkStencilOp passOp,
                         VkStencilOp depthFailOp, VkCompareOp compareOp)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
             statePtr = std::make_shared<CommandBufferState>();
-
         statePtr->Dyn.StencilOpFaceMask = faceMask;
         statePtr->Dyn.StencilFailOp = failOp;
         statePtr->Dyn.StencilPassOp = passOp;
         statePtr->Dyn.StencilDepthFailOp = depthFailOp;
         statePtr->Dyn.StencilCompareOp = compareOp;
         statePtr->Dyn.StencilOpSet = true;
+#endif
     }
 
     // NEW: Render pass tracking
     void OnBeginRenderPass(VkCommandBuffer cmd, const VkRenderPassBeginInfo* pRenderPassBegin)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
             statePtr = std::make_shared<CommandBufferState>();
-
         statePtr->InRenderPass = true;
         statePtr->ActiveRenderPass = pRenderPassBegin ? pRenderPassBegin->renderPass : VK_NULL_HANDLE;
         statePtr->ActiveFramebuffer = pRenderPassBegin ? pRenderPassBegin->framebuffer : VK_NULL_HANDLE;
+#endif
     }
 
     void OnEndRenderPass(VkCommandBuffer cmd)
     {
+#ifndef LOW_PRECISION_TRACKING
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         auto& statePtr = _states[cmd];
         if (!statePtr)
             statePtr = std::make_shared<CommandBufferState>();
-
         statePtr->InRenderPass = false;
+#endif
     }
 
     void OnCommandBufferDestroyed(VkCommandBuffer cmd)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         _states.erase(cmd);
     }
 
     void OnFreeCommandBuffers(VkCommandPool pool, uint32_t count, const VkCommandBuffer* pCommandBuffers)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -720,6 +819,9 @@ class CommandBufferStateTracker
     // Call this when a command pool is destroyed
     void OnDestroyPool(VkCommandPool pool)
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return;
+
         std::scoped_lock lock(_mtx);
 
         // Remove all command buffers allocated from this pool
@@ -742,6 +844,9 @@ class CommandBufferStateTracker
 
     bool CaptureAndReplay(VkCommandBuffer srcCmd, VkCommandBuffer dstCmd, const ReplayParams& params) const
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return false;
+
         if (!_hasCachedFns)
         {
             LOG_ERROR("Function table not initialized! Call SetFunctionTable() first.");
@@ -754,6 +859,9 @@ class CommandBufferStateTracker
     bool ReplayForGraphicsDraw(const VulkanCmdFns& fns, VkCommandBuffer srcCmd, VkCommandBuffer dstCmd,
                                const ReplayParams& params) const
     {
+        if (_state->currentFeature == nullptr || !_state->currentFeature->IsWithDx12())
+            return false;
+
         CommandBufferState snapshot;
         if (!TryGetSnapshot(srcCmd, snapshot))
         {
@@ -843,6 +951,8 @@ class CommandBufferStateTracker
     }
 
   private:
+    inline static State* _state;
+
     // Helper method to replay descriptor sets with proper slicing and timeline ordering
     void ReplayDescriptorSets(const VulkanCmdFns& fns, VkCommandBuffer dstCmd, const BindPointState& bindPoint,
                               VkPipelineBindPoint bindPointType, uint32_t requiredSetMask,
@@ -1137,6 +1247,7 @@ class CommandBufferStateTracker
         if (dyn.PrimitiveTopologySet && fns.CmdSetPrimitiveTopology)
             fns.CmdSetPrimitiveTopology(dst, dyn.PrimitiveTopology);
 
+#ifndef LOW_PRECISION_TRACKING
         if (dyn.DepthTestEnableSet && fns.CmdSetDepthTestEnable)
             fns.CmdSetDepthTestEnable(dst, dyn.DepthTestEnable);
 
@@ -1157,6 +1268,7 @@ class CommandBufferStateTracker
             fns.CmdSetStencilOp(dst, dyn.StencilOpFaceMask, dyn.StencilFailOp, dyn.StencilPassOp,
                                 dyn.StencilDepthFailOp, dyn.StencilCompareOp);
         }
+#endif
     }
 
     bool TryGetSnapshot(VkCommandBuffer cmd, CommandBufferState& out) const
@@ -1428,6 +1540,15 @@ class CommandBufferStateTracker
         }
 
         return true;
+    }
+
+    CommandBufferState* GetState(VkCommandBuffer cmd)
+    {
+        std::scoped_lock lock(_mtx);
+        auto& statePtr = _states[cmd];
+        if (!statePtr)
+            statePtr = std::make_shared<CommandBufferState>();
+        return statePtr.get(); // Return raw pointer
     }
 
     mutable std::mutex _mtx;

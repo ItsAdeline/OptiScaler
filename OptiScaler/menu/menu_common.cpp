@@ -2498,6 +2498,27 @@ bool MenuCommon::RenderMenu()
                         }
                     }
 
+                    if (state.api == Vulkan && state.currentFeature->IsWithDx12())
+                    {
+                        ImGui::Spacing();
+                        if (auto ch = ScopedCollapsingHeader("Vulkan with Dx12 Settings"); ch.IsHeaderOpen())
+                        {
+                            ScopedIndent indent {};
+                            ImGui::Spacing();
+
+                            if (bool inputsUseCopy = config->VulkanUseCopyForInputs.value_or_default();
+                                ImGui::Checkbox("Use CopyResource for Inputs", &inputsUseCopy))
+                                config->VulkanUseCopyForInputs = inputsUseCopy;
+
+                            if (bool outputUseCopy = config->VulkanUseCopyForOutput.value_or_default();
+                                ImGui::Checkbox("Use CopyResource for Output", &outputUseCopy))
+                                config->VulkanUseCopyForOutput = outputUseCopy;
+
+                            ImGui::Spacing();
+                            ImGui::Spacing();
+                        }
+                    }
+
                     // UPSCALER SPECIFIC -----------------------------
 
                     // XeSS -----------------------------

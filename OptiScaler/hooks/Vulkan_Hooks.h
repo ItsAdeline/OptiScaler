@@ -2,8 +2,6 @@
 
 #include <pch.h>
 
-// #define VULKAN_DEBUG_LAYER
-
 class VulkanHooks
 {
   public:

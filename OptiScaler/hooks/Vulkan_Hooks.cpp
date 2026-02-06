@@ -176,7 +176,8 @@ static VkResult hkvkCreateInstance(VkInstanceCreateInfo* pCreateInfo, const VkAl
         auto address = vkGetInstanceProcAddr(State::Instance().VulkanInstance, "vkCreateDebugUtilsMessengerEXT");
         auto vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT) address;
         VkDebugUtilsMessengerEXT debugMessenger;
-        vkCreateDebugUtilsMessengerEXT(State::Instance().VulkanInstance, &debugCreateInfo, nullptr, &debugMessenger);
+        vkCreateDebugUtilsMessengerEXT(State::Instance().VulkanInstance, &VulkanSpoofing::debugCreateInfo, nullptr,
+                                       &debugMessenger);
 #endif
     }
 

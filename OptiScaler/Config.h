@@ -371,6 +371,10 @@ class Config
     CustomOptional<bool> Dx11DelayedInit { false };
     CustomOptional<bool> DontUseNTShared { false };
 
+    // vulkanwdx12
+    CustomOptional<bool> VulkanUseCopyForInputs { false };
+    CustomOptional<bool> VulkanUseCopyForOutput { false };
+
     // NVAPI Override
     CustomOptional<bool> OverrideNvapiDll { false };
     CustomOptional<std::wstring, NoDefault> NvapiDllPath;

@@ -53,6 +53,6 @@ class DepthTransfer_Vk : public Shader_Vk
     void SetImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout,
                         VkImageSubresourceRange subresourceRange);
 
-    DepthTransfer_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice);
+    DepthTransfer_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice, VkFormat InFormat = VK_FORMAT_UNDEFINED);
     ~DepthTransfer_Vk();
 };

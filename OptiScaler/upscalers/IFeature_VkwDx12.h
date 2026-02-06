@@ -30,8 +30,12 @@ class IFeature_VkwDx12 : public virtual IFeature_Vk
         uint32_t Height = 0;
         VkImage VkSourceImage = VK_NULL_HANDLE;
         VkImageView VkSourceImageView = VK_NULL_HANDLE;
+        VkImageLayout VkSourceImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        VkAccessFlags VkSourceImageAccess = VK_ACCESS_NONE;
         VkImage VkSharedImage = VK_NULL_HANDLE;
         VkImageView VkSharedImageView = VK_NULL_HANDLE;
+        VkImageLayout VkSharedImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        VkAccessFlags VkSharedImageAccess = VK_ACCESS_NONE;
         VkDeviceMemory VkSharedMemory = VK_NULL_HANDLE;
         ID3D12Resource* Dx12Resource = nullptr;
         HANDLE SharedHandle = NULL;
@@ -100,7 +104,8 @@ class IFeature_VkwDx12 : public virtual IFeature_Vk
     bool CreateSharedTexture(const VkImageCreateInfo& ImageInfo, VkImage& VulkanResource, VkDeviceMemory& VulkanMemory,
                              ID3D12Resource*& D3D12Resource, bool InOutput);
     bool CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSDK_NGX_Resource_VK* InParam,
-                                 VK_TEXTURE2D_RESOURCE_C* OutResource, ResourceCopy_Vk* InCopyShader, bool InCopy);
+                                 VK_TEXTURE2D_RESOURCE_C* OutResource, ResourceCopy_Vk* InCopyShader, bool InCopy,
+                                 bool InDepth);
     bool ProcessVulkanTextures(VkCommandBuffer InCmdList, const NVSDK_NGX_Parameter* InParameters);
     bool CopyBackOutput();
 

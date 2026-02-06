@@ -807,10 +807,6 @@ static void CheckWorkingMode()
                 if (!State::Instance().isRunningOnDXVK && !State::Instance().isRunningOnLinux)
                     LOG_DEBUG("vulkan-1.dll already in memory");
 
-                // VulkanSpoofing::HookForVulkanSpoofing(vulkanModule);
-                // VulkanSpoofing::HookForVulkanExtensionSpoofing(vulkanModule);
-                // VulkanSpoofing::HookForVulkanVRAMSpoofing(vulkanModule);
-
                 VulkanHooks::Hook(vulkanModule);
             }
 

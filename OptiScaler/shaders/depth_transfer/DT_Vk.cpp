@@ -1,8 +1,66 @@
 #include "DT_Vk.h"
 #include "precompile/dt_Shader_Vk.h"
+#include "precompile/dt_int_Shader_Vk.h"
 #include <Config.h>
 
-DepthTransfer_Vk::DepthTransfer_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice)
+// Helper function to determine if format is integer or float
+static bool IsIntegerFormat(VkFormat format)
+{
+    switch (format)
+    {
+    // Integer formats
+    case VK_FORMAT_R8_UINT:
+    case VK_FORMAT_R8_SINT:
+    case VK_FORMAT_R8G8_UINT:
+    case VK_FORMAT_R8G8_SINT:
+    case VK_FORMAT_R8G8B8_UINT:
+    case VK_FORMAT_R8G8B8_SINT:
+    case VK_FORMAT_R8G8B8A8_UINT:
+    case VK_FORMAT_R8G8B8A8_SINT:
+    case VK_FORMAT_R16_UINT:
+    case VK_FORMAT_R16_SINT:
+    case VK_FORMAT_R16G16_UINT:
+    case VK_FORMAT_R16G16_SINT:
+    case VK_FORMAT_R16G16B16_UINT:
+    case VK_FORMAT_R16G16B16_SINT:
+    case VK_FORMAT_R16G16B16A16_UINT:
+    case VK_FORMAT_R16G16B16A16_SINT:
+    case VK_FORMAT_R32_UINT:
+    case VK_FORMAT_R32_SINT:
+    case VK_FORMAT_R32G32_UINT:
+    case VK_FORMAT_R32G32_SINT:
+    case VK_FORMAT_R32G32B32_UINT:
+    case VK_FORMAT_R32G32B32_SINT:
+    case VK_FORMAT_R32G32B32A32_UINT:
+    case VK_FORMAT_R32G32B32A32_SINT:
+    case VK_FORMAT_R64_UINT:
+    case VK_FORMAT_R64_SINT:
+    case VK_FORMAT_R64G64_UINT:
+    case VK_FORMAT_R64G64_SINT:
+    case VK_FORMAT_R64G64B64_UINT:
+    case VK_FORMAT_R64G64B64_SINT:
+    case VK_FORMAT_R64G64B64A64_UINT:
+    case VK_FORMAT_R64G64B64A64_SINT:
+    case VK_FORMAT_B8G8R8_UINT:
+    case VK_FORMAT_B8G8R8_SINT:
+    case VK_FORMAT_B8G8R8A8_UINT:
+    case VK_FORMAT_B8G8R8A8_SINT:
+    case VK_FORMAT_A8B8G8R8_UINT_PACK32:
+    case VK_FORMAT_A8B8G8R8_SINT_PACK32:
+    case VK_FORMAT_A2R10G10B10_UINT_PACK32:
+    case VK_FORMAT_A2R10G10B10_SINT_PACK32:
+    case VK_FORMAT_A2B10G10R10_UINT_PACK32:
+    case VK_FORMAT_A2B10G10R10_SINT_PACK32:
+        return true;
+
+    // Float and depth formats
+    default:
+        return false;
+    }
+}
+
+DepthTransfer_Vk::DepthTransfer_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice,
+                                   VkFormat InFormat)
     : Shader_Vk(InName, InDevice, InPhysicalDevice)
 {
     if (InDevice == VK_NULL_HANDLE)
@@ -17,30 +75,20 @@ DepthTransfer_Vk::DepthTransfer_Vk(std::string InName, VkDevice InDevice, VkPhys
     CreateDescriptorPool();
     CreateDescriptorSets();
 
-    //// Create nearest sampler for depth texture
-    // VkSamplerCreateInfo samplerInfo {};
-    // samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    // samplerInfo.magFilter = VK_FILTER_NEAREST;
-    // samplerInfo.minFilter = VK_FILTER_NEAREST;
-    // samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    // samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    // samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    // samplerInfo.anisotropyEnable = VK_FALSE;
-    // samplerInfo.maxAnisotropy = 1.0f;
-    // samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    // samplerInfo.unnormalizedCoordinates = VK_FALSE;
-    // samplerInfo.compareEnable = VK_FALSE;
-    // samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    // samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    // Load precompiled shader based on format
+    std::vector<char> shaderCode;
 
-    // if (vkCreateSampler(_device, &samplerInfo, nullptr, &_nearestSampler) != VK_SUCCESS)
-    //{
-    //     LOG_ERROR("[{0}] Failed to create texture sampler!", _name);
-    //     return;
-    // }
+    if (IsIntegerFormat(InFormat))
+    {
+        LOG_INFO("[{0}] Using integer shader for format", _name);
+        shaderCode = std::vector<char>(dt_int_spv, dt_int_spv + sizeof(dt_int_spv));
+    }
+    else
+    {
+        LOG_INFO("[{0}] Using float shader for format", _name);
+        shaderCode = std::vector<char>(dt_spv, dt_spv + sizeof(dt_spv));
+    }
 
-    // Load precompiled shader
-    std::vector<char> shaderCode(dt_spv, dt_spv + sizeof(dt_spv));
     if (!CreateComputePipeline(_device, _pipelineLayout, &_pipeline, shaderCode))
     {
         LOG_ERROR("[{0}] Failed to create pipeline!", _name);

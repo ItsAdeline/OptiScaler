@@ -685,7 +685,7 @@ bool IFeature_VkwDx12::CreateSharedTexture(const VkImageCreateInfo& ImageInfo, V
 
 bool IFeature_VkwDx12::CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSDK_NGX_Resource_VK* InParam,
                                                VK_TEXTURE2D_RESOURCE_C* OutResource, ResourceCopy_Vk* InCopyShader,
-                                               bool InCopy)
+                                               bool InCopy, bool InDepth)
 {
     LOG_FUNC();
 
@@ -699,7 +699,7 @@ bool IFeature_VkwDx12::CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSD
     }
 
     // Check if this is a depth format
-    bool isDepthFormat = IsDepthFormat(InParam->Resource.ImageViewInfo.Format);
+    bool isDepthFormat = InDepth; // IsDepthFormat(InParam->Resource.ImageViewInfo.Format);
 
     // Check if we need to create a new shared resource
     if (OutResource->Width != InParam->Resource.ImageViewInfo.Width ||
@@ -764,40 +764,8 @@ bool IFeature_VkwDx12::CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSD
             return false;
         }
 
-        if (InCopy)
-        {
-            VkImageMemoryBarrier imageBarrier {};
-            imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            imageBarrier.image = OutResource->VkSharedImage;
-            imageBarrier.subresourceRange = InParam->Resource.ImageViewInfo.SubresourceRange;
-            imageBarrier.srcAccessMask = 0;
-            imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            // Set initial state of the shared image
-            vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
-                                 0, nullptr, 0, nullptr, 1, &imageBarrier);
-        }
-        else
-        {
-            VkImageMemoryBarrier imageBarrier {};
-            imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            imageBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-            imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            imageBarrier.image = OutResource->VkSharedImage;
-            imageBarrier.subresourceRange = InParam->Resource.ImageViewInfo.SubresourceRange;
-            imageBarrier.srcAccessMask = 0;
-            imageBarrier.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-
-            // Set initial state of the shared image
-            vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
-                                 0, nullptr, 0, nullptr, 1, &imageBarrier);
-        }
+        OutResource->VkSharedImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        OutResource->VkSharedImageAccess = VK_ACCESS_NONE;
 
         LOG_DEBUG("Successfully created shared texture");
 
@@ -810,20 +778,44 @@ bool IFeature_VkwDx12::CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSD
                   (int) InParam->Resource.ImageViewInfo.Format);
     }
 
+    if (InCopy)
+    {
+        OutResource->VkSourceImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        OutResource->VkSourceImageAccess = VK_ACCESS_SHADER_READ_BIT;
+    }
+    else
+    {
+        OutResource->VkSourceImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        OutResource->VkSourceImageAccess = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    }
+
     // Copy from source to shared image if requested
     if (InCopy && InParam->Resource.ImageViewInfo.Image != VK_NULL_HANDLE)
     {
         if (isDepthFormat)
         {
-            LOG_DEBUG("Using DepthTransfer_Vk for format: {} ({})",
-                      magic_enum::enum_name(InParam->Resource.ImageViewInfo.Format),
-                      (int) InParam->Resource.ImageViewInfo.Format);
+            //LOG_DEBUG("Using DepthTransfer_Vk for format: {} ({})",
+            //          magic_enum::enum_name(InParam->Resource.ImageViewInfo.Format),
+            //          (int) InParam->Resource.ImageViewInfo.Format);
 
             if (!DT->CanRender())
             {
                 LOG_ERROR("DepthTransfer_Vk not initialized!");
                 return false;
             }
+
+            VkImageMemoryBarrier imageBarrier = {};
+            imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            imageBarrier.oldLayout = OutResource->VkSharedImageLayout;
+            imageBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageBarrier.image = OutResource->VkSharedImage;
+            imageBarrier.subresourceRange = InParam->Resource.ImageViewInfo.SubresourceRange;
+            imageBarrier.srcAccessMask = OutResource->VkSharedImageAccess;
+            imageBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
 
             // Create image views for depth transfer
             if (OutResource->VkSharedImageView == VK_NULL_HANDLE)
@@ -856,13 +848,23 @@ bool IFeature_VkwDx12::CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSD
                 return false;
             }
 
+            imageBarrier.oldLayout = imageBarrier.newLayout;
+            imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageBarrier.srcAccessMask = imageBarrier.dstAccessMask;
+            imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
+
+            OutResource->VkSharedImageLayout = imageBarrier.newLayout;
+            OutResource->VkSharedImageAccess = imageBarrier.dstAccessMask;
+
             LOG_DEBUG("Depth converted to R32_SFLOAT");
         }
         else
         {
-            LOG_DEBUG("Using ResourceCopy_Vk for format: {} ({})",
-                      magic_enum::enum_name(InParam->Resource.ImageViewInfo.Format),
-                      (int) InParam->Resource.ImageViewInfo.Format);
+            // LOG_DEBUG("Using ResourceCopy_Vk for format: {} ({})",
+            //           magic_enum::enum_name(InParam->Resource.ImageViewInfo.Format),
+            //           (int) InParam->Resource.ImageViewInfo.Format);
 
             if (!InCopyShader->CanRender())
             {
@@ -888,54 +890,23 @@ bool IFeature_VkwDx12::CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSD
                 }
             }
 
-            // Copy previous frame upscaled image to the output, to see if upscaling is working correctly
-            // To make it work, disable InCopy check at:
-            // if (InCopy && InParam->Resource.ImageViewInfo.Image != VK_NULL_HANDLE)
-            if (false)
             {
-                VkImageMemoryBarrier imageBarrier1 = {};
-                imageBarrier1.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                imageBarrier1.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-                imageBarrier1.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                imageBarrier1.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                imageBarrier1.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                imageBarrier1.image = OutResource->VkSharedImage;
-                imageBarrier1.subresourceRange = InParam->Resource.ImageViewInfo.SubresourceRange;
-                imageBarrier1.srcAccessMask = 0;
-                imageBarrier1.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-                vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1,
-                                     &imageBarrier1);
-
-                if (OutCopy2 == nullptr || OutCopy2.get() == nullptr)
-                    OutCopy2 = std::make_unique<ResourceCopy_Vk>("OutCopy2", VulkanDevice, VulkanPhysicalDevice);
-
-                VkExtent2D extent = { InParam->Resource.ImageViewInfo.Width, InParam->Resource.ImageViewInfo.Height };
-                if (!OutCopy2->Dispatch(VulkanDevice, InCmdBuffer, OutResource->VkSharedImageView,
-                                        OutResource->VkSourceImageView, extent))
+                if (!Config::Instance()->VulkanUseCopyForInputs.value_or_default())
                 {
-                    LOG_ERROR("Failed to dispatch resource copy!");
-                    return false;
-                }
+                    VkImageMemoryBarrier imageBarrier = {};
+                    imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                    imageBarrier.oldLayout = OutResource->VkSharedImageLayout;
+                    imageBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+                    imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                    imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                    imageBarrier.image = OutResource->VkSharedImage;
+                    imageBarrier.subresourceRange = InParam->Resource.ImageViewInfo.SubresourceRange;
+                    imageBarrier.srcAccessMask = OutResource->VkSharedImageAccess;
+                    imageBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                                         &imageBarrier);
 
-                VkImageMemoryBarrier imageBarrier2 = {};
-                imageBarrier2.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                imageBarrier2.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                imageBarrier2.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-                imageBarrier2.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                imageBarrier2.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                imageBarrier2.image = OutResource->VkSharedImage;
-                imageBarrier2.subresourceRange = InParam->Resource.ImageViewInfo.SubresourceRange;
-                imageBarrier2.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-                imageBarrier2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-                vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1,
-                                     &imageBarrier2);
-            }
-            else
-            {
-                if (false)
-                {
                     VkExtent2D extent = { InParam->Resource.ImageViewInfo.Width,
                                           InParam->Resource.ImageViewInfo.Height };
                     if (!InCopyShader->Dispatch(VulkanDevice, InCmdBuffer, InParam->Resource.ImageViewInfo.ImageView,
@@ -944,29 +915,40 @@ bool IFeature_VkwDx12::CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSD
                         LOG_ERROR("Failed to dispatch resource copy!");
                         return false;
                     }
+
+                    imageBarrier.oldLayout = imageBarrier.newLayout;
+                    imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    imageBarrier.srcAccessMask = imageBarrier.dstAccessMask;
+                    imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                                         &imageBarrier);
+
+                    OutResource->VkSharedImageLayout = imageBarrier.newLayout;
+                    OutResource->VkSharedImageAccess = imageBarrier.dstAccessMask;
                 }
                 else
                 {
                     VkImageMemoryBarrier imageBarriers[2] = { {}, {} };
 
                     imageBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                    imageBarriers[0].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    imageBarriers[0].oldLayout = OutResource->VkSourceImageLayout;
                     imageBarriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
                     imageBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                     imageBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                     imageBarriers[0].image = InParam->Resource.ImageViewInfo.Image;
                     imageBarriers[0].subresourceRange = InParam->Resource.ImageViewInfo.SubresourceRange;
-                    imageBarriers[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    imageBarriers[0].srcAccessMask = OutResource->VkSourceImageAccess;
                     imageBarriers[0].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
                     imageBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                    imageBarriers[1].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    imageBarriers[1].oldLayout = OutResource->VkSharedImageLayout;
                     imageBarriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
                     imageBarriers[1].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                     imageBarriers[1].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                     imageBarriers[1].image = OutResource->VkSharedImage;
                     imageBarriers[1].subresourceRange = InParam->Resource.ImageViewInfo.SubresourceRange;
-                    imageBarriers[1].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+                    imageBarriers[1].srcAccessMask = OutResource->VkSharedImageAccess;
                     imageBarriers[1].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
                     // Single batched barrier call for pre-copy transitions
@@ -1005,6 +987,11 @@ bool IFeature_VkwDx12::CopyTextureFromVkToDx12(VkCommandBuffer InCmdBuffer, NVSD
                     vkCmdPipelineBarrier(InCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 2,
                                          imageBarriers);
+
+                    OutResource->VkSourceImageLayout = imageBarriers[0].newLayout;
+                    OutResource->VkSourceImageAccess = imageBarriers[0].dstAccessMask;
+                    OutResource->VkSharedImageLayout = imageBarriers[1].newLayout;
+                    OutResource->VkSharedImageAccess = imageBarriers[1].dstAccessMask;
                 }
             }
 
@@ -1104,7 +1091,8 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
     else
     {
         if (DT == nullptr || DT.get() == nullptr)
-            DT = std::make_unique<DepthTransfer_Vk>("DepthTransfer", VulkanDevice, VulkanPhysicalDevice);
+            DT = std::make_unique<DepthTransfer_Vk>("DepthTransfer", VulkanDevice, VulkanPhysicalDevice,
+                                                    paramDepth->Resource.ImageViewInfo.Format);
 
         if (DepthCopy == nullptr || DepthCopy.get() == nullptr)
             DepthCopy = std::make_unique<ResourceCopy_Vk>("DepthCopy", VulkanDevice, VulkanPhysicalDevice);
@@ -1160,7 +1148,7 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
         vkColor.VkSourceImage = paramColor->Resource.ImageViewInfo.Image;
         vkColor.VkSourceImageView = paramColor->Resource.ImageViewInfo.ImageView;
 
-        if (!CopyTextureFromVkToDx12(InCmdList, paramColor, &vkColor, ColorCopy.get(), true))
+        if (!CopyTextureFromVkToDx12(InCmdList, paramColor, &vkColor, ColorCopy.get(), true, false))
         {
             LOG_ERROR("Failed to copy color texture!");
             return false;
@@ -1180,7 +1168,7 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
                   paramMv->Resource.ImageViewInfo.Height, magic_enum::enum_name(paramMv->Resource.ImageViewInfo.Format),
                   (int) paramMv->Resource.ImageViewInfo.Format);
 
-        if (!CopyTextureFromVkToDx12(InCmdList, paramMv, &vkMv, VelocityCopy.get(), true))
+        if (!CopyTextureFromVkToDx12(InCmdList, paramMv, &vkMv, VelocityCopy.get(), true, false))
         {
             LOG_ERROR("Failed to copy motion vectors!");
             return false;
@@ -1204,7 +1192,7 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
         vkOut.VkSourceImage = paramOutput->Resource.ImageViewInfo.Image;
         vkOut.VkSourceImageView = paramOutput->Resource.ImageViewInfo.ImageView;
 
-        if (!CopyTextureFromVkToDx12(InCmdList, paramOutput, &vkOut, OutCopy.get(), false))
+        if (!CopyTextureFromVkToDx12(InCmdList, paramOutput, &vkOut, OutCopy.get(), false, false))
         {
             LOG_ERROR("Failed to copy output texture!");
             return false;
@@ -1225,7 +1213,7 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
                   magic_enum::enum_name(paramDepth->Resource.ImageViewInfo.Format),
                   (int) paramDepth->Resource.ImageViewInfo.Format);
 
-        if (!CopyTextureFromVkToDx12(InCmdList, paramDepth, &vkDepth, DepthCopy.get(), true))
+        if (!CopyTextureFromVkToDx12(InCmdList, paramDepth, &vkDepth, DepthCopy.get(), true, true))
         {
             LOG_ERROR("Failed to copy depth texture!");
             return false;
@@ -1246,7 +1234,7 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
                   magic_enum::enum_name(paramExposure->Resource.ImageViewInfo.Format),
                   (int) paramExposure->Resource.ImageViewInfo.Format);
 
-        if (!CopyTextureFromVkToDx12(InCmdList, paramExposure, &vkExp, ExpCopy.get(), true))
+        if (!CopyTextureFromVkToDx12(InCmdList, paramExposure, &vkExp, ExpCopy.get(), true, false))
         {
             LOG_ERROR("Failed to copy exposure texture!");
             return false;
@@ -1267,7 +1255,7 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
                   magic_enum::enum_name(paramReactiveMask->Resource.ImageViewInfo.Format),
                   (int) paramReactiveMask->Resource.ImageViewInfo.Format);
 
-        if (!CopyTextureFromVkToDx12(InCmdList, paramReactiveMask, &vkReactive, ReactiveCopy.get(), true))
+        if (!CopyTextureFromVkToDx12(InCmdList, paramReactiveMask, &vkReactive, ReactiveCopy.get(), true, false))
         {
             LOG_ERROR("Failed to copy reactive mask!");
             return false;
@@ -1362,7 +1350,7 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
 
         VkImageMemoryBarrier imageBarrier = {};
         imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        imageBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        imageBarrier.oldLayout = vkOut.VkSourceImageLayout;
         imageBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
         imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1372,12 +1360,11 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
         imageBarrier.subresourceRange.levelCount = 1;
         imageBarrier.subresourceRange.baseArrayLayer = 0;
         imageBarrier.subresourceRange.layerCount = 1;
-        imageBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        imageBarrier.srcAccessMask = vkOut.VkSourceImageAccess;
         imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 
-        vkCmdPipelineBarrier(VulkanBarrierCommandBuffer[frame], VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
-                             nullptr, 0, nullptr, 1, &imageBarrier);
+        vkCmdPipelineBarrier(VulkanBarrierCommandBuffer[frame], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
     }
 
     // D3D12 wait on the shared fence signaled by Vulkan
@@ -1524,7 +1511,7 @@ bool IFeature_VkwDx12::CopyBackOutput()
             {
                 VkImageMemoryBarrier imageBarrier {};
                 imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                imageBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+                imageBarrier.oldLayout = resource->VkSourceImageLayout;
                 imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                 imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1534,7 +1521,7 @@ bool IFeature_VkwDx12::CopyBackOutput()
                 imageBarrier.subresourceRange.levelCount = 1;
                 imageBarrier.subresourceRange.baseArrayLayer = 0;
                 imageBarrier.subresourceRange.layerCount = 1;
-                imageBarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+                imageBarrier.srcAccessMask = resource->VkSourceImageAccess;
                 imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
                 imageBarriers.push_back(imageBarrier);
             }
@@ -1547,18 +1534,17 @@ bool IFeature_VkwDx12::CopyBackOutput()
         AddVkBarrier(&vkReactive);
 
         vkCmdPipelineBarrier(VulkanCopyCommandBuffer[frame], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                             VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-                             0, nullptr, imageBarriers.size(), imageBarriers.data());
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, imageBarriers.size(),
+                             imageBarriers.data());
 
-        if (false)
+        if (!Config::Instance()->VulkanUseCopyForOutput.value_or_default())
         {
-
             // Batch Vulkan barriers
             VkImageMemoryBarrier imageBarrier = {};
 
             // Transition shared image to transfer src
             imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            imageBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageBarrier.oldLayout = vkOut.VkSharedImageLayout;
             imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1568,12 +1554,15 @@ bool IFeature_VkwDx12::CopyBackOutput()
             imageBarrier.subresourceRange.levelCount = 1;
             imageBarrier.subresourceRange.baseArrayLayer = 0;
             imageBarrier.subresourceRange.layerCount = 1;
-            imageBarrier.srcAccessMask = 0;
+            imageBarrier.srcAccessMask = vkOut.VkSharedImageAccess;
             imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
+            vkOut.VkSharedImageLayout = imageBarrier.newLayout;
+            vkOut.VkSharedImageAccess = imageBarrier.dstAccessMask;
+
             // Single batched barrier call for pre-copy transitions
-            vkCmdPipelineBarrier(VulkanCopyCommandBuffer[frame], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
+            vkCmdPipelineBarrier(VulkanCopyCommandBuffer[frame], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
 
             if (!OutCopy->CanRender())
             {
@@ -1610,42 +1599,6 @@ bool IFeature_VkwDx12::CopyBackOutput()
                 LOG_ERROR("Failed to dispatch resource copy!");
                 return false;
             }
-
-            // Code to check if copy back is working
-            {
-                // if (OutCopy2 == nullptr || OutCopy2.get() == nullptr)
-                //     OutCopy2 = std::make_unique<ResourceCopy_Vk>("OutCopy2", VulkanDevice, VulkanPhysicalDevice);
-
-                // VkExtent2D extent = { vkColor.Width, vkColor.Height };
-                // if (!OutCopy2->Dispatch(VulkanDevice, VulkanCopyCommandBuffer[frame], vkColor.VkSourceImageView,
-                //                         vkOut.VkSharedImageView, extent))
-                //{
-                //     LOG_ERROR("Failed to dispatch resource copy!");
-                //     return false;
-                // }
-
-                // LOG_DEBUG("Resource copy completed");
-
-                // Post-copy transitions
-                VkImageMemoryBarrier imageBarrier1 = {};
-                imageBarrier1.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                imageBarrier1.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-                imageBarrier1.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-                imageBarrier1.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                imageBarrier1.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                imageBarrier1.image = vkOut.VkSourceImage;
-                imageBarrier1.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                imageBarrier1.subresourceRange.baseMipLevel = 0;
-                imageBarrier1.subresourceRange.levelCount = 1;
-                imageBarrier1.subresourceRange.baseArrayLayer = 0;
-                imageBarrier1.subresourceRange.layerCount = 1;
-                imageBarrier1.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-                imageBarrier1.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-
-                vkCmdPipelineBarrier(VulkanCopyCommandBuffer[frame], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1,
-                                     &imageBarrier1);
-            }
         }
         else
         {
@@ -1653,7 +1606,7 @@ bool IFeature_VkwDx12::CopyBackOutput()
 
             // Shared
             imageBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            imageBarriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageBarriers[0].oldLayout = vkOut.VkSharedImageLayout;
             imageBarriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
             imageBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             imageBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1663,12 +1616,12 @@ bool IFeature_VkwDx12::CopyBackOutput()
             imageBarriers[0].subresourceRange.levelCount = 1;
             imageBarriers[0].subresourceRange.baseArrayLayer = 0;
             imageBarriers[0].subresourceRange.layerCount = 1;
-            imageBarriers[0].srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+            imageBarriers[0].srcAccessMask = vkOut.VkSharedImageAccess;
             imageBarriers[0].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
             // Source
             imageBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            imageBarriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageBarriers[1].oldLayout = vkOut.VkSourceImageLayout;
             imageBarriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             imageBarriers[1].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             imageBarriers[1].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1678,7 +1631,7 @@ bool IFeature_VkwDx12::CopyBackOutput()
             imageBarriers[1].subresourceRange.levelCount = 1;
             imageBarriers[1].subresourceRange.baseArrayLayer = 0;
             imageBarriers[1].subresourceRange.layerCount = 1;
-            imageBarriers[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            imageBarriers[1].srcAccessMask = vkOut.VkSourceImageAccess;
             imageBarriers[1].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
             vkCmdPipelineBarrier(VulkanCopyCommandBuffer[frame], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -1700,16 +1653,21 @@ bool IFeature_VkwDx12::CopyBackOutput()
             // Shared
             imageBarriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
             imageBarriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-            imageBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            imageBarriers[0].srcAccessMask = imageBarriers[0].dstAccessMask;
             imageBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 
             imageBarriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             imageBarriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-            imageBarriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            imageBarriers[1].srcAccessMask = imageBarriers[1].dstAccessMask;
             imageBarriers[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 
             vkCmdPipelineBarrier(VulkanCopyCommandBuffer[frame], VK_PIPELINE_STAGE_TRANSFER_BIT,
                                  VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 2, imageBarriers);
+
+            vkOut.VkSharedImageLayout = imageBarriers[0].newLayout;
+            vkOut.VkSharedImageAccess = imageBarriers[0].dstAccessMask;
+            vkOut.VkSourceImageLayout = imageBarriers[1].newLayout;
+            vkOut.VkSourceImageAccess = imageBarriers[1].dstAccessMask;
         }
 
         // Close virtual command buffer

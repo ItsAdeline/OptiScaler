@@ -12,6 +12,8 @@ class VulkanSpoofing
 {
   private:
   public:
+    inline static VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
+
     static VkResult hkvkCreateDevice(VkPhysicalDevice physicalDevice, VkDeviceCreateInfo* pCreateInfo,
                                      const VkAllocationCallbacks* pAllocator, VkDevice* pDevice);
     static VkResult hkvkCreateInstance(VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator,

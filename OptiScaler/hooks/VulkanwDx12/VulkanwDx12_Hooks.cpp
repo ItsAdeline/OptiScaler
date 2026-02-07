@@ -29,6 +29,9 @@ static PFN_vkFreeCommandBuffers o_vkFreeCommandBuffers = nullptr;
 static PFN_vkResetCommandPool o_vkResetCommandPool = nullptr;
 static PFN_vkAllocateCommandBuffers o_vkAllocateCommandBuffers = nullptr;
 static PFN_vkDestroyCommandPool o_vkDestroyCommandPool = nullptr;
+static PFN_vkCreateCommandPool o_vkCreateCommandPool = nullptr;
+
+static std::unordered_map<VkCommandPool, uint32_t> commandPoolToQueueFamilyMap;
 
 // #define LOG_ALL_RECORDS
 
@@ -6043,6 +6046,22 @@ void Vulkan_wDx12::hk_vkCmdDrawMeshTasksIndirectCountEXT(VkCommandBuffer command
 
 #pragma endregion
 
+VkResult hk_vkCreateCommandPool(VkDevice device, const VkCommandPoolCreateInfo* pCreateInfo,
+                                const VkAllocationCallbacks* pAllocator, VkCommandPool* pCommandPool)
+{
+    VkResult result = o_vkCreateCommandPool(device, pCreateInfo, pAllocator, pCommandPool);
+
+    if (result == VK_SUCCESS && pCommandPool && *pCommandPool != VK_NULL_HANDLE && pCreateInfo)
+    {
+        commandPoolToQueueFamilyMap[*pCommandPool] = pCreateInfo->queueFamilyIndex;
+
+        LOG_DEBUG("Command pool {:X} created for queue family {}", (size_t) *pCommandPool,
+                  pCreateInfo->queueFamilyIndex);
+    }
+
+    return result;
+}
+
 void Vulkan_wDx12::hk_vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount,
                                            const VkCommandBuffer* pCommandBuffers)
 {
@@ -6081,6 +6100,7 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit(VkQueue queue, uint32_t submitCount, VkS
     std::vector<VkSubmitInfo> submitInfos;
     std::vector<uint64_t> signalValues;
     std::vector<VkCommandBuffer> cmdBuffers;
+    bool injected = false;
 
     if (commandBufferFoundCount < 1 && lastCmdBuffer != VK_NULL_HANDLE && submitCount > 0)
     {
@@ -6097,6 +6117,7 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit(VkQueue queue, uint32_t submitCount, VkS
                     {
                         LOG_DEBUG("Found upscaling command buffer: {:X}, submit: {}, queue: {:X}",
                                   (size_t) lastCmdBuffer, i, (size_t) queue);
+
                         // Upscaling command buffer found, inject timeline semaphore
                         commandBufferFoundCount++;
                         submitIndex = i;
@@ -6112,7 +6133,6 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit(VkQueue queue, uint32_t submitCount, VkS
 
             if (addSemaphore)
             {
-
                 // Original signals in submit
                 auto signalCount = pSubmits[submitIndex].signalSemaphoreCount;
                 auto signals = pSubmits[submitIndex].pSignalSemaphores;
@@ -6236,72 +6256,8 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit(VkQueue queue, uint32_t submitCount, VkS
                 pSubmits = submitInfos.data();
 
                 LOG_DEBUG("Injected w/Dx12 submits");
-
-#ifdef LOG_ALL_RECORDS
-                LOG_DEBUG("==================================================");
-
-                for (size_t a = 0; a < submitCount; a++)
-                {
-                    LOG_DEBUG("  sType: {}", magic_enum::enum_name(pSubmits[a].sType));
-                    LOG_DEBUG("  Submit[{}]: cmdBufferCount: {}", a, pSubmits[a].commandBufferCount);
-
-                    for (size_t b = 0; b < pSubmits[a].commandBufferCount; b++)
-                    {
-                        LOG_DEBUG("    CmdBuffer[{}]: {:X}", b, (size_t) pSubmits[a].pCommandBuffers[b]);
-                    }
-                    LOG_DEBUG("    waitSemaphoreCount: {}", pSubmits[a].waitSemaphoreCount);
-                    for (size_t c = 0; c < pSubmits[a].waitSemaphoreCount; c++)
-                    {
-                        LOG_DEBUG("    WaitSemaphore[{}]: {:X}", c, (size_t) pSubmits[a].pWaitSemaphores[c]);
-                    }
-                    LOG_DEBUG("    signalSemaphoreCount: {}", pSubmits[a].signalSemaphoreCount);
-                    for (size_t d = 0; d < pSubmits[a].signalSemaphoreCount; d++)
-                    {
-                        LOG_DEBUG("    SignalSemaphore[{}]: {:X}", d, (size_t) pSubmits[a].pSignalSemaphores[d]);
-                    }
-
-                    LOG_DEBUG("    pNext chain:");
-                    VkDummyProps* next = (VkDummyProps*) &pSubmits[a];
-                    while (next->pNext != nullptr)
-                    {
-                        next = (VkDummyProps*) next->pNext;
-
-                        if (next->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO)
-                        {
-                            LOG_DEBUG("      sType: VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO");
-                            auto tlSemaphoreInfo = (VkTimelineSemaphoreSubmitInfo*) next;
-                            LOG_DEBUG("        waitSemaphoreValueCount: {}", tlSemaphoreInfo->waitSemaphoreValueCount);
-
-                            if (tlSemaphoreInfo->pWaitSemaphoreValues != nullptr)
-                            {
-                                for (size_t e = 0; e < tlSemaphoreInfo->waitSemaphoreValueCount; e++)
-                                {
-                                    LOG_DEBUG("          WaitSemaphoreValue[{}]: {}", e,
-                                              tlSemaphoreInfo->pWaitSemaphoreValues[e]);
-                                }
-                            }
-
-                            LOG_DEBUG("        signalSemaphoreValueCount: {}",
-                                      tlSemaphoreInfo->signalSemaphoreValueCount);
-
-                            if (tlSemaphoreInfo->pSignalSemaphoreValues != nullptr)
-                            {
-                                for (size_t f = 0; f < tlSemaphoreInfo->signalSemaphoreValueCount; f++)
-                                {
-                                    LOG_DEBUG("          SignalSemaphoreValue[{}]: {}", f,
-                                              tlSemaphoreInfo->pSignalSemaphoreValues[f]);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            LOG_DEBUG("      sType: {}", (UINT) next->sType);
-                        }
-                    }
-                }
-#endif
-
                 lastCmdBuffer = VK_NULL_HANDLE;
+                injected = true;
                 break;
             }
         }
@@ -6309,9 +6265,75 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit(VkQueue queue, uint32_t submitCount, VkS
 
     // Call original function
     auto result = o_vkQueueSubmit(queue, submitCount, pSubmits, fence);
-#ifdef LOG_ALL_RECORDS
-    LOG_DEBUG("o_vkQueueSubmit result: {}", magic_enum::enum_name(result));
-#endif
+    if (result != VK_SUCCESS)
+    {
+        LOG_ERROR("vkQueueSubmit failed with error code: {}", magic_enum::enum_name(result));
+
+        if (injected)
+        {
+            LOG_DEBUG("==================================================");
+
+            for (size_t a = 0; a < submitCount; a++)
+            {
+                LOG_DEBUG("  sType: {}", magic_enum::enum_name(pSubmits[a].sType));
+                LOG_DEBUG("  Submit[{}]: cmdBufferCount: {}", a, pSubmits[a].commandBufferCount);
+
+                for (size_t b = 0; b < pSubmits[a].commandBufferCount; b++)
+                {
+                    LOG_DEBUG("    CmdBuffer[{}]: {:X}", b, (size_t) pSubmits[a].pCommandBuffers[b]);
+                }
+                LOG_DEBUG("    waitSemaphoreCount: {}", pSubmits[a].waitSemaphoreCount);
+                for (size_t c = 0; c < pSubmits[a].waitSemaphoreCount; c++)
+                {
+                    LOG_DEBUG("    WaitSemaphore[{}]: {:X}", c, (size_t) pSubmits[a].pWaitSemaphores[c]);
+                }
+                LOG_DEBUG("    signalSemaphoreCount: {}", pSubmits[a].signalSemaphoreCount);
+                for (size_t d = 0; d < pSubmits[a].signalSemaphoreCount; d++)
+                {
+                    LOG_DEBUG("    SignalSemaphore[{}]: {:X}", d, (size_t) pSubmits[a].pSignalSemaphores[d]);
+                }
+
+                LOG_DEBUG("    pNext chain:");
+                VkDummyProps* next = (VkDummyProps*) &pSubmits[a];
+                while (next->pNext != nullptr)
+                {
+                    next = (VkDummyProps*) next->pNext;
+
+                    if (next->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO)
+                    {
+                        LOG_DEBUG("      sType: VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO");
+                        auto tlSemaphoreInfo = (VkTimelineSemaphoreSubmitInfo*) next;
+                        LOG_DEBUG("        waitSemaphoreValueCount: {}", tlSemaphoreInfo->waitSemaphoreValueCount);
+
+                        if (tlSemaphoreInfo->pWaitSemaphoreValues != nullptr)
+                        {
+                            for (size_t e = 0; e < tlSemaphoreInfo->waitSemaphoreValueCount; e++)
+                            {
+                                LOG_DEBUG("          WaitSemaphoreValue[{}]: {}", e,
+                                          tlSemaphoreInfo->pWaitSemaphoreValues[e]);
+                            }
+                        }
+
+                        LOG_DEBUG("        signalSemaphoreValueCount: {}", tlSemaphoreInfo->signalSemaphoreValueCount);
+
+                        if (tlSemaphoreInfo->pSignalSemaphoreValues != nullptr)
+                        {
+                            for (size_t f = 0; f < tlSemaphoreInfo->signalSemaphoreValueCount; f++)
+                            {
+                                LOG_DEBUG("          SignalSemaphoreValue[{}]: {}", f,
+                                          tlSemaphoreInfo->pSignalSemaphoreValues[f]);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        LOG_DEBUG("      sType: {}", (UINT) next->sType);
+                    }
+                }
+            }
+        }
+    }
+
     return result;
 }
 
@@ -6332,6 +6354,7 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit2(VkQueue queue, uint32_t submitCount, Vk
     std::vector<VkSubmitInfo2> submitInfos;
     std::vector<VkCommandBufferSubmitInfo> cmdBufferInfos;
     std::vector<uint64_t> signalValues;
+    bool injected = false;
 
     if (commandBufferFoundCount < 1 && lastCmdBuffer != VK_NULL_HANDLE && submitCount > 0)
     {
@@ -6460,38 +6483,8 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit2(VkQueue queue, uint32_t submitCount, Vk
                 pSubmits = submitInfos.data();
 
                 LOG_DEBUG("Injected w/Dx12 submits");
-
-#ifdef LOG_ALL_RECORDS
-                LOG_DEBUG("==================================================");
-
-                for (size_t a = 0; a < submitCount; a++)
-                {
-                    LOG_DEBUG("  Submit[{}]: cmdBufferInfoCount: {}", a, pSubmits[a].commandBufferInfoCount);
-
-                    for (size_t b = 0; b < pSubmits[a].commandBufferInfoCount; b++)
-                    {
-                        LOG_DEBUG("    CmdBuffer[{}]: {:X}", b,
-                                  (size_t) pSubmits[a].pCommandBufferInfos[b].commandBuffer);
-                    }
-
-                    LOG_DEBUG("    waitSemaphoreInfoCount: {}", pSubmits[a].waitSemaphoreInfoCount);
-                    for (size_t c = 0; c < pSubmits[a].waitSemaphoreInfoCount; c++)
-                    {
-                        LOG_DEBUG("    WaitSemaphore[{}]: {:X}, value: {}", c,
-                                  (size_t) pSubmits[a].pWaitSemaphoreInfos[c].semaphore,
-                                  pSubmits[a].pWaitSemaphoreInfos[c].value);
-                    }
-
-                    LOG_DEBUG("    signalSemaphoreInfoCount: {}", pSubmits[a].signalSemaphoreInfoCount);
-                    for (size_t d = 0; d < pSubmits[a].signalSemaphoreInfoCount; d++)
-                    {
-                        LOG_DEBUG("    SignalSemaphore[{}]: {:X}, value: {}", d,
-                                  (size_t) pSubmits[a].pSignalSemaphoreInfos[d].semaphore,
-                                  pSubmits[a].pSignalSemaphoreInfos[d].value);
-                    }
-                }
-#endif
                 lastCmdBuffer = VK_NULL_HANDLE;
+                injected = true;
                 break;
             }
         }
@@ -6499,9 +6492,43 @@ VkResult Vulkan_wDx12::hk_vkQueueSubmit2(VkQueue queue, uint32_t submitCount, Vk
 
     // Call original function
     auto result = o_vkQueueSubmit2(queue, submitCount, pSubmits, fence);
-#ifdef LOG_ALL_RECORDS
-    LOG_DEBUG("o_vkQueueSubmit2 result: {}", magic_enum::enum_name(result));
-#endif
+
+    if (result != VK_SUCCESS)
+    {
+        LOG_ERROR("o_vkQueueSubmit2 result: {}", magic_enum::enum_name(result));
+
+        if (injected)
+        {
+            LOG_DEBUG("==================================================");
+
+            for (size_t a = 0; a < submitCount; a++)
+            {
+                LOG_DEBUG("  Submit[{}]: cmdBufferInfoCount: {}", a, pSubmits[a].commandBufferInfoCount);
+
+                for (size_t b = 0; b < pSubmits[a].commandBufferInfoCount; b++)
+                {
+                    LOG_DEBUG("    CmdBuffer[{}]: {:X}", b, (size_t) pSubmits[a].pCommandBufferInfos[b].commandBuffer);
+                }
+
+                LOG_DEBUG("    waitSemaphoreInfoCount: {}", pSubmits[a].waitSemaphoreInfoCount);
+                for (size_t c = 0; c < pSubmits[a].waitSemaphoreInfoCount; c++)
+                {
+                    LOG_DEBUG("    WaitSemaphore[{}]: {:X}, value: {}", c,
+                              (size_t) pSubmits[a].pWaitSemaphoreInfos[c].semaphore,
+                              pSubmits[a].pWaitSemaphoreInfos[c].value);
+                }
+
+                LOG_DEBUG("    signalSemaphoreInfoCount: {}", pSubmits[a].signalSemaphoreInfoCount);
+                for (size_t d = 0; d < pSubmits[a].signalSemaphoreInfoCount; d++)
+                {
+                    LOG_DEBUG("    SignalSemaphore[{}]: {:X}, value: {}", d,
+                              (size_t) pSubmits[a].pSignalSemaphoreInfos[d].semaphore,
+                              pSubmits[a].pSignalSemaphoreInfos[d].value);
+                }
+            }
+        }
+    }
+
     return result;
 }
 
@@ -6769,9 +6796,12 @@ VkResult Vulkan_wDx12::hk_vkAllocateCommandBuffers(VkDevice device, const VkComm
 
     if (result == VK_SUCCESS && pAllocateInfo != nullptr && pCommandBuffers != nullptr)
     {
+        auto it = commandPoolToQueueFamilyMap.find(pAllocateInfo->commandPool);
+        uint32_t queueFamily = (it != commandPoolToQueueFamilyMap.end()) ? it->second : 0;
+
         // Notify state tracker about new command buffers
         cmdBufferStateTracker.OnAllocateCommandBuffers(pAllocateInfo->commandPool, pAllocateInfo->commandBufferCount,
-                                                       pCommandBuffers);
+                                                       pCommandBuffers, queueFamily);
     }
 
     return result;
@@ -6884,6 +6914,15 @@ PFN_vkVoidFunction Vulkan_wDx12::GetAddress(const PFN_vkVoidFunction original, c
             o_vkCmdExecuteCommands = (PFN_vkCmdExecuteCommands) original;
 
         return (PFN_vkVoidFunction) hk_vkCmdExecuteCommands;
+    }
+    if (procName == std::string("vkCreateCommandPool"))
+    {
+        LOG_DEBUG("vkCreateCommandPool");
+
+        if (o_vkCreateCommandPool == nullptr)
+            o_vkCreateCommandPool = (PFN_vkCreateCommandPool) original;
+
+        return (PFN_vkVoidFunction) hk_vkCreateCommandPool;
     }
     if (procName == std::string("vkFreeCommandBuffers"))
     {
@@ -9362,6 +9401,7 @@ void Vulkan_wDx12::Hook(HMODULE vulkanModule)
     o_vkAllocateCommandBuffers =
         (PFN_vkAllocateCommandBuffers) GetProcAddress(vulkanModule, "vkAllocateCommandBuffers");
     o_vkDestroyCommandPool = (PFN_vkDestroyCommandPool) GetProcAddress(vulkanModule, "vkDestroyCommandPool");
+    o_vkCreateCommandPool = (PFN_vkCreateCommandPool) GetProcAddress(vulkanModule, "vkCreateCommandPool");
 
 #pragma region vkCmd functions
 
@@ -9829,6 +9869,9 @@ void Vulkan_wDx12::Hook(HMODULE vulkanModule)
 
         if (o_vkCmdExecuteCommands)
             DetourAttach(&(PVOID&) o_vkCmdExecuteCommands, hk_vkCmdExecuteCommands);
+
+        if (o_vkCreateCommandPool)
+            DetourAttach(&(PVOID&) o_vkCreateCommandPool, hk_vkCreateCommandPool);
 
 #pragma region CommandBuffer detours
 

@@ -9,6 +9,7 @@
 #include "upscalers/dlss/DLSSFeature_Vk.h"
 #include "upscalers/dlssd/DLSSDFeature_Vk.h"
 #include "upscalers/fsr2_212/FSR2Feature_Vk_212.h"
+#include "upscalers/fsr2_212/FSR2Feature_VkOnDx12_212.h"
 #include "upscalers/fsr31/FSR31Feature_Vk.h"
 #include "upscalers/xess/XeSSFeature_Vk.h"
 #include "upscalers/fsr31/FSR31Feature_VkOn12.h"
@@ -26,6 +27,11 @@ bool FeatureProvider_Vk::GetFeature(std::string upscalerName, UINT handleId, NVS
         else if (upscalerName == "fsr21")
         {
             *feature = std::make_unique<FSR2FeatureVk212>(handleId, parameters);
+            break;
+        }
+        else if (upscalerName == "fsr21_12")
+        {
+            *feature = std::make_unique<FSR2FeatureVkOnDx12_212>(handleId, parameters);
             break;
         }
         else if (upscalerName == "fsr22")

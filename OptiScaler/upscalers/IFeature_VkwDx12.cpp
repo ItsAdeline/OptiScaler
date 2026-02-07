@@ -1232,21 +1232,21 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
                   magic_enum::enum_name(paramColor->Resource.ImageViewInfo.Format),
                   (int) paramColor->Resource.ImageViewInfo.Format);
 
-        vkColor.VkSourceImage = paramColor->Resource.ImageViewInfo.Image;
-        vkColor.VkSourceImageView = paramColor->Resource.ImageViewInfo.ImageView;
-
         if (!CopyTextureFromVkToDx12(InCmdList, paramColor, &vkColor, ColorCopy.get(), true, false))
         {
             LOG_ERROR("Failed to copy color texture!");
             return false;
         }
-#ifdef VULKAN_DEBUG_LAYER
         else
         {
+            vkColor.VkSourceImage = paramColor->Resource.ImageViewInfo.Image;
+            vkColor.VkSourceImageView = paramColor->Resource.ImageViewInfo.ImageView;
+
+#ifdef VULKAN_DEBUG_LAYER
             SetVkObjectName(VulkanDevice, VK_OBJECT_TYPE_IMAGE, (uint64_t) paramColor->Resource.ImageViewInfo.Image,
                             "Color");
-        }
 #endif
+        }
     }
 
     if (paramMv != nullptr)
@@ -1260,13 +1260,16 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
             LOG_ERROR("Failed to copy motion vectors!");
             return false;
         }
-#ifdef VULKAN_DEBUG_LAYER
         else
         {
+            vkMv.VkSourceImage = paramMv->Resource.ImageViewInfo.Image;
+            vkMv.VkSourceImageView = paramMv->Resource.ImageViewInfo.ImageView;
+
+#ifdef VULKAN_DEBUG_LAYER
             SetVkObjectName(VulkanDevice, VK_OBJECT_TYPE_IMAGE, (uint64_t) paramMv->Resource.ImageViewInfo.Image,
                             "MotionVectors");
-        }
 #endif
+        }
     }
 
     if (paramOutput != nullptr)
@@ -1276,21 +1279,21 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
                   magic_enum::enum_name(paramOutput->Resource.ImageViewInfo.Format),
                   (int) paramOutput->Resource.ImageViewInfo.Format);
 
-        vkOut.VkSourceImage = paramOutput->Resource.ImageViewInfo.Image;
-        vkOut.VkSourceImageView = paramOutput->Resource.ImageViewInfo.ImageView;
-
         if (!CopyTextureFromVkToDx12(InCmdList, paramOutput, &vkOut, OutCopy.get(), false, false))
         {
             LOG_ERROR("Failed to copy output texture!");
             return false;
         }
-#ifdef VULKAN_DEBUG_LAYER
         else
         {
+            vkOut.VkSourceImage = paramOutput->Resource.ImageViewInfo.Image;
+            vkOut.VkSourceImageView = paramOutput->Resource.ImageViewInfo.ImageView;
+
+#ifdef VULKAN_DEBUG_LAYER
             SetVkObjectName(VulkanDevice, VK_OBJECT_TYPE_IMAGE, (uint64_t) paramOutput->Resource.ImageViewInfo.Image,
                             "Output");
-        }
 #endif
+        }
     }
 
     if (paramDepth != nullptr)
@@ -1305,13 +1308,16 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
             LOG_ERROR("Failed to copy depth texture!");
             return false;
         }
-#ifdef VULKAN_DEBUG_LAYER
         else
         {
+            vkDepth.VkSourceImage = paramDepth->Resource.ImageViewInfo.Image;
+            vkDepth.VkSourceImageView = paramDepth->Resource.ImageViewInfo.ImageView;
+
+#ifdef VULKAN_DEBUG_LAYER
             SetVkObjectName(VulkanDevice, VK_OBJECT_TYPE_IMAGE, (uint64_t) paramDepth->Resource.ImageViewInfo.Image,
                             "Depth");
-        }
 #endif
+        }
     }
 
     if (paramExposure != nullptr)
@@ -1326,13 +1332,16 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
             LOG_ERROR("Failed to copy exposure texture!");
             return false;
         }
-#ifdef VULKAN_DEBUG_LAYER
         else
         {
+            vkExp.VkSourceImage = paramExposure->Resource.ImageViewInfo.Image;
+            vkExp.VkSourceImageView = paramExposure->Resource.ImageViewInfo.ImageView;
+
+#ifdef VULKAN_DEBUG_LAYER
             SetVkObjectName(VulkanDevice, VK_OBJECT_TYPE_IMAGE, (uint64_t) paramExposure->Resource.ImageViewInfo.Image,
                             "Exposure");
-        }
 #endif
+        }
     }
 
     if (paramReactiveMask != nullptr)
@@ -1347,13 +1356,16 @@ bool IFeature_VkwDx12::ProcessVulkanTextures(VkCommandBuffer InCmdList, const NV
             LOG_ERROR("Failed to copy reactive mask!");
             return false;
         }
-#ifdef VULKAN_DEBUG_LAYER
         else
         {
+            vkReactive.VkSourceImage = paramReactiveMask->Resource.ImageViewInfo.Image;
+            vkReactive.VkSourceImageView = paramReactiveMask->Resource.ImageViewInfo.ImageView;
+
+#ifdef VULKAN_DEBUG_LAYER
             SetVkObjectName(VulkanDevice, VK_OBJECT_TYPE_IMAGE,
                             (uint64_t) paramReactiveMask->Resource.ImageViewInfo.Image, "ReactiveMask");
-        }
 #endif
+        }
     }
 
 #pragma endregion

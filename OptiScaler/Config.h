@@ -330,7 +330,7 @@ class Config
     // Upscalers
     CustomOptional<std::string, SoftDefault> Dx11Upscaler { "fsr22" };
     CustomOptional<std::string, SoftDefault> Dx12Upscaler { "xess" };
-    CustomOptional<std::string, SoftDefault> VulkanUpscaler { "fsr21" };
+    CustomOptional<std::string, SoftDefault> VulkanUpscaler { "fsr22" };
 
     // Output Scaling
     CustomOptional<bool> OutputScalingEnabled { false };

@@ -46,8 +46,6 @@
 static std::vector<HMODULE> _asiHandles;
 static bool _passThruMode = false;
 
-
-
 typedef const char*(CDECL* PFN_wine_get_version)(void);
 typedef void (*PFN_InitializeASI)(void);
 typedef bool (*PFN_PatchResult)(void);

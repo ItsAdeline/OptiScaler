@@ -123,8 +123,16 @@ bool FeatureProvider_Vk::ChangeFeature(std::string upscalerName, VkInstance inst
 
             dc = nullptr;
 
-            LOG_DEBUG("sleeping before reset of current feature for 1000ms");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            if (State::Instance().gameQuirks & GameQuirk::FastFeatureReset)
+            {
+                LOG_DEBUG("sleeping before reset of current feature for 100ms (Fast Feature Reset)");
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            else
+            {
+                LOG_DEBUG("sleeping before reset of current feature for 1000ms");
+                Util::BufferedSleep(1000);
+            }
 
             contextData->feature.reset();
             contextData->feature = nullptr;

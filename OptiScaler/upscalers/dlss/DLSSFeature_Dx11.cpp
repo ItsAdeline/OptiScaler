@@ -37,7 +37,7 @@ bool DLSSFeatureDx11::Init(ID3D11Device* InDevice, ID3D11DeviceContext* InContex
                 NVNGXProxy::D3D11_ReleaseFeature() != nullptr && NVNGXProxy::D3D11_EvaluateFeature() != nullptr;
 
             // delay between init and create feature
-            Util::BufferedSleep(500);
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
 
         LOG_INFO("Creating DLSS feature");

@@ -631,6 +631,12 @@ bool XeFG_Dx12::Dispatch()
 
     LOG_DEBUG("_frameCount: {}, willDispatchFrame: {}, fIndex: {}", _frameCount, willDispatchFrame, fIndex);
 
+    if (!ReadyToDispatch(fIndex))
+    {
+        LOG_WARN("Depth or Velocity is not ready, skipping");
+        return false;
+    }
+
     auto& state = State::Instance();
 
     if (!_haveHudless.has_value())

@@ -157,7 +157,7 @@ static bool CreateBufferResource(ID3D12Device* InDevice, ID3D12Resource* InResou
     }
 
     LOG_DEBUG("Created new one: {}x{}", inDesc.Width, inDesc.Height);
-    return true;
+    return false;
 }
 
 static void ResourceBarrier(ID3D12GraphicsCommandList* InCommandList, ID3D12Resource* InResource,
@@ -271,15 +271,8 @@ ffxReturnCode_t ffxCreateContext_Dx12FG(ffxContext* context, ffxCreateContextDes
     else if (desc->type == FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_NEW_DX12)
     {
         auto cDesc = (ffxCreateContextDescFrameGenerationSwapChainNewDX12*) desc;
-
-        DXGI_SWAP_CHAIN_DESC localDesc = *cDesc->desc;
-        localDesc.BufferCount = std::max(3U, localDesc.BufferCount);
-        localDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-        localDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
-        localDesc.Flags |= 0x800; // DXGI_SWAP_CHAIN_FLAG_ALLOW_UNORDERED_ACCESS
-
         auto result =
-            cDesc->dxgiFactory->CreateSwapChain(cDesc->gameQueue, &localDesc, (IDXGISwapChain**) cDesc->swapchain);
+            cDesc->dxgiFactory->CreateSwapChain(cDesc->gameQueue, cDesc->desc, (IDXGISwapChain**) cDesc->swapchain);
 
         if (result == S_OK)
         {
@@ -315,13 +308,7 @@ ffxReturnCode_t ffxCreateContext_Dx12FG(ffxContext* context, ffxCreateContextDes
 
         factory->Release();
 
-        DXGI_SWAP_CHAIN_DESC1 localDesc = *cDesc->desc;
-        localDesc.BufferCount = std::max(3U, localDesc.BufferCount);
-        localDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-        localDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
-        localDesc.Flags |= 0x800; // DXGI_SWAP_CHAIN_FLAG_ALLOW_UNORDERED_ACCESS
-
-        auto result = factory->CreateSwapChainForHwnd(cDesc->gameQueue, cDesc->hwnd, &localDesc, cDesc->fullscreenDesc,
+        auto result = factory->CreateSwapChainForHwnd(cDesc->gameQueue, cDesc->hwnd, cDesc->desc, cDesc->fullscreenDesc,
                                                       nullptr, (IDXGISwapChain1**) cDesc->swapchain);
 
         if (result == S_OK)

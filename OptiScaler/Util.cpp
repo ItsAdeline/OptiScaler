@@ -228,28 +228,6 @@ double Util::MillisecondsNow()
     return milliseconds;
 }
 
-void Util::BufferedSleep(int ms)
-{
-    if (ms < 500)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-        return;
-    }
-
-    static auto lastSleep = std::chrono::steady_clock::now();
-    auto now = std::chrono::steady_clock::now();
-
-    if (std::chrono::duration_cast<std::chrono::seconds>(now - lastSleep).count() > 5)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-        lastSleep = std::chrono::steady_clock::now();
-    }
-    else
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-}
-
 std::filesystem::path Util::ExePath()
 {
     static std::filesystem::path exe;

@@ -763,7 +763,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_CreateFeature1(VkDevice InDevice
         if (deviceContext->feature->Init(vkInstance, vkPD, InDevice, InCmdList, vkGIPA, vkGDPA, InParameters))
         {
             State::Instance().currentFeature = deviceContext->feature.get();
-            Util::BufferedSleep(500);
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
             deviceContext->evalCounter = 0;
 
             return NVSDK_NGX_Result_Success;
@@ -865,7 +865,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_ReleaseFeature(NVSDK_NGX_Handle*
             State::Instance().currentFeature = nullptr;
 
         vkDeviceWaitIdle(vkDevice);
-        Util::BufferedSleep(500);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         VkContexts[handleId].feature.reset();
         auto it = std::find_if(VkContexts.begin(), VkContexts.end(),
@@ -873,7 +873,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_ReleaseFeature(NVSDK_NGX_Handle*
         VkContexts.erase(it);
     }
 
-    Util::BufferedSleep(500);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     return NVSDK_NGX_Result_Success;
 }

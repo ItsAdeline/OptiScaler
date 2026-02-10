@@ -110,7 +110,8 @@ class IFGFeature
     int GetIndexWillBeDispatched();
     UINT64 StartNewFrame();
 
-    bool IsResourceReady(FG_ResourceType type, int index = -1);
+    virtual bool IsResourceReady(FG_ResourceType type, int index = -1);
+    virtual bool ReadyToDispatch(int index = -1);
 
     bool IsUsingUI();
     bool IsUsingUIAny(); // Same as IsUsingUI but checks if at least once buffer has UI

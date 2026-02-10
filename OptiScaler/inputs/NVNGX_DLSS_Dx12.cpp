@@ -904,6 +904,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
     State::Instance().setInputApiName.clear();
 
     deviceContext->evalCounter++;
+    if (deviceContext->feature)
+        deviceContext->feature->SetEvalCounter(deviceContext->evalCounter);
+
     if (Config::Instance()->SkipFirstFrames.has_value() &&
         deviceContext->evalCounter < Config::Instance()->SkipFirstFrames.value())
         return NVSDK_NGX_Result_Success;
@@ -935,9 +938,13 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
         return NVSDK_NGX_Result_Success;
     }
 
-    if (!deviceContext->feature->IsInited() && Config::Instance()->Dx12Upscaler.value_or_default() != "fsr21")
+    if (deviceContext->evalCounter > 60 && !deviceContext->feature->IsInited() && Config::Instance()->Dx12Upscaler.value_or_default() != "fsr21")
     {
         LOG_WARN("InCmdList {0} is not inited, falling back to FSR 2.1.2", deviceContext->feature->Name());
+        
+        if (deviceContext->evalCounter > 120)
+            State::Instance().gameQuirks |= GameQuirk::FastFeatureReset;
+
         State::Instance().newBackend = "fsr21";
         State::Instance().changeBackend[handleId] = true;
         return NVSDK_NGX_Result_Success;

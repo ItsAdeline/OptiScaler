@@ -3,19 +3,25 @@
 #include "SysUtils.h"
 
 #include <atomic>
-#include <shared_mutex>
+#include <mutex>
+#include <chrono>
 
 class OwnedMutex
 {
   private:
-    std::shared_mutex mtx;
+    std::timed_mutex mtx;
     std::atomic<uint32_t> owner { 0 }; // don't use 0
 
   public:
-    void lock(uint32_t _owner)
+    bool lock(uint32_t _owner, uint32_t timeout_ms = 100)
     {
-        mtx.lock();
-        owner.store(_owner, std::memory_order_release);
+        if (mtx.try_lock_for(std::chrono::milliseconds(timeout_ms)))
+        {
+            owner.store(_owner, std::memory_order_release);
+            return true;
+        }
+        LOG_WARN("lock timeout! current_owner: {}, _owner: {}", owner.load(), _owner);
+        return false;
     }
 
     // Only unlocks if owner matches
@@ -41,12 +47,19 @@ class OwnedLockGuard
   private:
     OwnedMutex& _mutex;
     uint32_t _owner_id;
+    bool _locked = false;
 
   public:
-    OwnedLockGuard(OwnedMutex& mutex, uint32_t owner_id) : _mutex(mutex), _owner_id(owner_id)
+    OwnedLockGuard(OwnedMutex& mutex, uint32_t owner_id, uint32_t timeout_ms = 100) : _mutex(mutex), _owner_id(owner_id)
     {
-        _mutex.lock(_owner_id);
+        _locked = _mutex.lock(_owner_id, timeout_ms);
     }
 
-    ~OwnedLockGuard() { _mutex.unlockThis(_owner_id); }
+    ~OwnedLockGuard()
+    {
+        if (_locked)
+            _mutex.unlockThis(_owner_id);
+    }
+
+    bool isLocked() const { return _locked; }
 };

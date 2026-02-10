@@ -69,6 +69,9 @@ class IFeature
     unsigned int _displayHeight = 0;
 
     long _frameCount = 0;
+    int _evalCounter = 0;
+    long _updatesWithoutFramecountChange = 0;
+    long _lastTickFrameCount = 0;
     bool _featureFrozen = false;
     bool _moduleLoaded = false;
 
@@ -112,6 +115,8 @@ class IFeature
     bool HasOutput() const { return _hasOutput; }
     bool ModuleLoaded() const { return _moduleLoaded; }
     long FrameCount() { return _frameCount; }
+    void SetEvalCounter(int InValue) { _evalCounter = InValue; }
+    int EvalCounter() const { return _evalCounter; }
 
     bool AutoExposure() { return _initFlags.AutoExposure; }
     bool DepthInverted() { return _initFlags.DepthInverted; }

@@ -27,7 +27,6 @@ static ankerl::unordered_dense::map<unsigned int, ContextData<IFeature_Dx12>> Dx
 static ankerl::unordered_dense::map<ID3D12GraphicsCommandList*, ID3D12RootSignature*> computeSignatures;
 static ankerl::unordered_dense::map<ID3D12GraphicsCommandList*, ID3D12RootSignature*> graphicSignatures;
 static ID3D12Device* D3D12Device = nullptr;
-static int evalCounter = 0;
 static std::wstring appDataPath = L".";
 static bool shutdown = false;
 static inline bool _skipInit = false;
@@ -545,12 +544,34 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_CreateFeature(ID3D12GraphicsComma
     if (InCmdList != nullptr)
         HookToCommandList(InCmdList);
 
-    if (State::Instance().activeFgInput == FGInput::Nukems && DLSSGMod::isDx12Available() &&
+    if ((State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG) &&
         InFeatureID == NVSDK_NGX_Feature_FrameGeneration)
     {
-        auto result = DLSSGMod::D3D12_CreateFeature(InCmdList, InFeatureID, InParameters, OutHandle);
-        LOG_INFO("Creating new modded DLSSG feature with HandleId: {0}", (*OutHandle)->Id);
-        return result;
+        if (State::Instance().activeFgInput == FGInput::Nukems && DLSSGMod::isDx12Available())
+        {
+            auto result = DLSSGMod::D3D12_CreateFeature(InCmdList, InFeatureID, InParameters, OutHandle);
+            LOG_INFO("Creating new modded DLSSG feature with HandleId: {0}", (*OutHandle)->Id);
+            return result;
+        }
+
+        if (State::Instance().activeFgInput == FGInput::DLSSG && Config::Instance()->DLSSEnabled.value_or_default() &&
+            NVNGXProxy::InitDx12(D3D12Device) && NVNGXProxy::D3D12_CreateFeature() != nullptr)
+        {
+            LOG_INFO("calling D3D12_CreateFeature for ({0})", (int) InFeatureID);
+            auto result = NVNGXProxy::D3D12_CreateFeature()(InCmdList, InFeatureID, InParameters, OutHandle);
+
+            if (result == NVSDK_NGX_Result_Success)
+            {
+                LOG_INFO("D3D12_CreateFeature HandleId for ({0}): {1:X}", (int) InFeatureID, (*OutHandle)->Id);
+                State::Instance().BypassedHandles.insert((*OutHandle)->Id);
+            }
+            else
+            {
+                LOG_INFO("D3D12_CreateFeature result for ({0}): {1:X}", (int) InFeatureID, (UINT) result);
+            }
+
+            return result;
+        }
     }
     else if (InFeatureID != NVSDK_NGX_Feature_SuperSampling && InFeatureID != NVSDK_NGX_Feature_RayReconstruction)
     {
@@ -650,7 +671,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_CreateFeature(ID3D12GraphicsComma
     if (deviceContext->Init(D3D12Device, InCmdList, InParameters))
     {
         State::Instance().currentFeature = deviceContext;
-        evalCounter = 0;
+        Dx12Contexts[handleId].evalCounter = 0;
 
         UpscalerInputsDx12::Reset();
     }
@@ -716,6 +737,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_ReleaseFeature(NVSDK_NGX_Handle* 
 
     if (handleId < DLSS_MOD_ID_OFFSET)
     {
+        if (State::Instance().BypassedHandles.contains(handleId))
+            State::Instance().BypassedHandles.erase(handleId);
+
         if (Config::Instance()->DLSSEnabled.value_or_default() && NVNGXProxy::D3D12_ReleaseFeature() != nullptr)
         {
             if (!shutdown)
@@ -831,6 +855,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
     LOG_DEBUG("Handle: {}, CmdList: {:X}", InFeatureHandle->Id, (size_t) InCmdList);
     auto handleId = InFeatureHandle->Id;
 
+    if (State::Instance().BypassedHandles.contains(handleId))
+        return NVSDK_NGX_Result_Success;
+
     if (handleId < DLSS_MOD_ID_OFFSET)
     {
         if (Config::Instance()->DLSSEnabled.value_or_default() && NVNGXProxy::D3D12_EvaluateFeature() != nullptr)
@@ -846,9 +873,13 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
             return NVSDK_NGX_Result_FAIL_FeatureNotFound;
         }
     }
-    else if (State::Instance().activeFgInput == FGInput::Nukems && handleId >= DLSSG_MOD_ID_OFFSET)
+    else if ((State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG) &&
+             handleId >= DLSSG_MOD_ID_OFFSET)
     {
-        return DLSSGMod::D3D12_EvaluateFeature(InCmdList, InFeatureHandle, InParameters, InCallback);
+        if (State::Instance().activeFgInput == FGInput::Nukems)
+            return DLSSGMod::D3D12_EvaluateFeature(InCmdList, InFeatureHandle, InParameters, InCallback);
+
+        return NVSDK_NGX_Result_Success;
     }
 
     if (!Dx12Contexts.contains(handleId))
@@ -872,8 +903,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
 
     State::Instance().setInputApiName.clear();
 
-    evalCounter++;
-    if (Config::Instance()->SkipFirstFrames.has_value() && evalCounter < Config::Instance()->SkipFirstFrames.value())
+    deviceContext->evalCounter++;
+    if (Config::Instance()->SkipFirstFrames.has_value() &&
+        deviceContext->evalCounter < Config::Instance()->SkipFirstFrames.value())
         return NVSDK_NGX_Result_Success;
 
     if (InCallback)
@@ -898,7 +930,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
         FeatureProvider_Dx12::ChangeFeature(State::Instance().newBackend, D3D12Device, InCmdList, handleId,
                                             InParameters, deviceContext);
 
-        evalCounter = 0;
+        deviceContext->evalCounter = 0;
 
         return NVSDK_NGX_Result_Success;
     }
@@ -993,10 +1025,14 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_GetScratchBufferSize(NVSDK_NGX_Fe
     if (OutSizeInBytes == nullptr)
         return NVSDK_NGX_Result_FAIL_InvalidParameter;
 
-    if (State::Instance().activeFgInput == FGInput::Nukems && DLSSGMod::isDx12Available() &&
+    if ((State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG) &&
         InFeatureId == NVSDK_NGX_Feature_FrameGeneration)
     {
-        return DLSSGMod::D3D12_GetScratchBufferSize(InFeatureId, InParameters, OutSizeInBytes);
+        if (State::Instance().activeFgInput == FGInput::Nukems && DLSSGMod::isDx12Available())
+            return DLSSGMod::D3D12_GetScratchBufferSize(InFeatureId, InParameters, OutSizeInBytes);
+
+        *OutSizeInBytes = 0;
+        return NVSDK_NGX_Result_Success;
     }
 
     LOG_WARN("-> 52428800");

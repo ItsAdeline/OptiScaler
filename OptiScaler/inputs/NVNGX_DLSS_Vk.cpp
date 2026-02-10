@@ -22,7 +22,6 @@ PFN_vkGetInstanceProcAddr vkGIPA;
 PFN_vkGetDeviceProcAddr vkGDPA;
 
 static ankerl::unordered_dense::map<unsigned int, ContextData<IFeature_Vk>> VkContexts;
-static inline int evalCounter = 0;
 static inline bool shutdown = false;
 static inline bool _skipInit = false;
 
@@ -646,9 +645,14 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_GetScratchBufferSize(NVSDK_NGX_F
                                                                      const NVSDK_NGX_Parameter* InParameters,
                                                                      size_t* OutSizeInBytes)
 {
-    if (DLSSGMod::isVulkanAvailable() && InFeatureId == NVSDK_NGX_Feature_FrameGeneration)
+    if ((State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG) &&
+        InFeatureId == NVSDK_NGX_Feature_FrameGeneration)
     {
-        return DLSSGMod::VULKAN_GetScratchBufferSize(InFeatureId, InParameters, OutSizeInBytes);
+        if (State::Instance().activeFgInput == FGInput::Nukems && DLSSGMod::isVulkanAvailable())
+            return DLSSGMod::VULKAN_GetScratchBufferSize(InFeatureId, InParameters, OutSizeInBytes);
+
+        *OutSizeInBytes = 0;
+        return NVSDK_NGX_Result_Success;
     }
 
     LOG_WARN("-> 52428800");
@@ -662,11 +666,35 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_CreateFeature1(VkDevice InDevice
                                                                NVSDK_NGX_Parameter* InParameters,
                                                                NVSDK_NGX_Handle** OutHandle)
 {
-    if (DLSSGMod::isVulkanAvailable() && InFeatureID == NVSDK_NGX_Feature_FrameGeneration)
+    if ((State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG) &&
+        InFeatureID == NVSDK_NGX_Feature_FrameGeneration)
     {
-        auto result = DLSSGMod::VULKAN_CreateFeature1(InDevice, InCmdList, InFeatureID, InParameters, OutHandle);
-        LOG_INFO("Creating new modded DLSSG feature with HandleId: {0}", (*OutHandle)->Id);
-        return result;
+        if (State::Instance().activeFgInput == FGInput::Nukems && DLSSGMod::isVulkanAvailable())
+        {
+            auto result = DLSSGMod::VULKAN_CreateFeature1(InDevice, InCmdList, InFeatureID, InParameters, OutHandle);
+            LOG_INFO("Creating new modded DLSSG feature with HandleId: {0}", (*OutHandle)->Id);
+            return result;
+        }
+
+        if (State::Instance().activeFgInput == FGInput::DLSSG && Config::Instance()->DLSSEnabled.value_or_default() &&
+            NVNGXProxy::InitVulkan(vkInstance, vkPD, vkDevice, vkGIPA, vkGDPA) &&
+            NVNGXProxy::VULKAN_CreateFeature1() != nullptr)
+        {
+            auto result =
+                NVNGXProxy::VULKAN_CreateFeature1()(InDevice, InCmdList, InFeatureID, InParameters, OutHandle);
+
+            if (result == NVSDK_NGX_Result_Success)
+            {
+                LOG_INFO("VULKAN_CreateFeature1 HandleId for DLSSG: {0:X}", (*OutHandle)->Id);
+                State::Instance().BypassedHandles.insert((*OutHandle)->Id);
+            }
+            else
+            {
+                LOG_INFO("VULKAN_CreateFeature1 result for ({0}): {1:X}", (int) InFeatureID, (UINT) result);
+            }
+
+            return result;
+        }
     }
     else if (InFeatureID != NVSDK_NGX_Feature_SuperSampling && InFeatureID != NVSDK_NGX_Feature_RayReconstruction)
     {
@@ -725,18 +753,18 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_CreateFeature1(VkDevice InDevice
     }
 
     State::Instance().api = Vulkan;
-    auto deviceContext = VkContexts[handleId].feature.get();
-    *OutHandle = deviceContext->Handle();
+    auto deviceContext = &VkContexts[handleId];
+    *OutHandle = deviceContext->feature->Handle();
 
     State::Instance().AutoExposure.reset();
 
     {
         ScopedSkipSpoofing skipSpoofing;
-        if (deviceContext->Init(vkInstance, vkPD, InDevice, InCmdList, vkGIPA, vkGDPA, InParameters))
+        if (deviceContext->feature->Init(vkInstance, vkPD, InDevice, InCmdList, vkGIPA, vkGDPA, InParameters))
         {
-            State::Instance().currentFeature = deviceContext;
+            State::Instance().currentFeature = deviceContext->feature.get();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            evalCounter = 0;
+            deviceContext->evalCounter = 0;
 
             return NVSDK_NGX_Result_Success;
         }
@@ -753,11 +781,34 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_CreateFeature(VkCommandBuffer In
 {
     LOG_FUNC();
 
-    if (DLSSGMod::isVulkanAvailable() && InFeatureID == NVSDK_NGX_Feature_FrameGeneration)
+    if ((State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG) &&
+        InFeatureID == NVSDK_NGX_Feature_FrameGeneration)
     {
-        auto result = DLSSGMod::VULKAN_CreateFeature(InCmdBuffer, InFeatureID, InParameters, OutHandle);
-        LOG_INFO("Creating new modded DLSSG feature with HandleId: {0}", (*OutHandle)->Id);
-        return result;
+        if (State::Instance().activeFgInput == FGInput::Nukems && DLSSGMod::isVulkanAvailable())
+        {
+            auto result = DLSSGMod::VULKAN_CreateFeature(InCmdBuffer, InFeatureID, InParameters, OutHandle);
+            LOG_INFO("Creating new modded DLSSG feature with HandleId: {0}", (*OutHandle)->Id);
+            return result;
+        }
+
+        if (State::Instance().activeFgInput == FGInput::DLSSG && Config::Instance()->DLSSEnabled.value_or_default() &&
+            NVNGXProxy::InitVulkan(vkInstance, vkPD, vkDevice, vkGIPA, vkGDPA) &&
+            NVNGXProxy::VULKAN_CreateFeature() != nullptr)
+        {
+            auto result = NVNGXProxy::VULKAN_CreateFeature()(InCmdBuffer, InFeatureID, InParameters, OutHandle);
+
+            if (result == NVSDK_NGX_Result_Success)
+            {
+                LOG_INFO("VULKAN_CreateFeature HandleId for DLSSG: {0:X}", (*OutHandle)->Id);
+                State::Instance().BypassedHandles.insert((*OutHandle)->Id);
+            }
+            else
+            {
+                LOG_INFO("VULKAN_CreateFeature result for ({0}): {1:X}", (int) InFeatureID, (UINT) result);
+            }
+
+            return result;
+        }
     }
     else if (InFeatureID != NVSDK_NGX_Feature_SuperSampling && InFeatureID != NVSDK_NGX_Feature_RayReconstruction)
     {
@@ -782,6 +833,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_ReleaseFeature(NVSDK_NGX_Handle*
     auto handleId = InHandle->Id;
     if (handleId < DLSS_MOD_ID_OFFSET)
     {
+        if (State::Instance().BypassedHandles.contains(handleId))
+            State::Instance().BypassedHandles.erase(handleId);
+
         if (Config::Instance()->DLSSEnabled.value_or_default() && NVNGXProxy::VULKAN_ReleaseFeature() != nullptr)
         {
             auto result = NVNGXProxy::VULKAN_ReleaseFeature()(InHandle);
@@ -868,6 +922,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_EvaluateFeature(VkCommandBuffer 
 
     State::Instance().setInputApiName.clear();
 
+    if (State::Instance().BypassedHandles.contains(handleId))
+        return NVSDK_NGX_Result_Success;
+
     if (handleId < DLSS_MOD_ID_OFFSET)
     {
         if (Config::Instance()->DLSSEnabled.value_or_default() && NVNGXProxy::VULKAN_EvaluateFeature() != nullptr)
@@ -882,26 +939,32 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_EvaluateFeature(VkCommandBuffer 
             return NVSDK_NGX_Result_FAIL_FeatureNotFound;
         }
     }
-    else if (handleId >= DLSSG_MOD_ID_OFFSET)
+    else if ((State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG) &&
+             handleId >= DLSSG_MOD_ID_OFFSET)
     {
-        return DLSSGMod::VULKAN_EvaluateFeature(InCmdList, InFeatureHandle, InParameters, InCallback);
+        if (State::Instance().activeFgInput == FGInput::Nukems)
+            return DLSSGMod::VULKAN_EvaluateFeature(InCmdList, InFeatureHandle, InParameters, InCallback);
+
+        return NVSDK_NGX_Result_Success;
     }
 
-    evalCounter++;
-    if (Config::Instance()->SkipFirstFrames.has_value() && evalCounter < Config::Instance()->SkipFirstFrames.value())
+    auto contextData = &VkContexts[handleId];
+
+    contextData->evalCounter++;
+    if (Config::Instance()->SkipFirstFrames.has_value() &&
+        contextData->evalCounter < Config::Instance()->SkipFirstFrames.value())
         return NVSDK_NGX_Result_Success;
 
     if (InCallback)
         LOG_WARN("callback exist");
 
     IFeature_Vk* deviceContext = nullptr;
-    auto contextData = &VkContexts[handleId];
 
     if (State::Instance().changeBackend[handleId])
     {
         FeatureProvider_Vk::ChangeFeature(State::Instance().newBackend, vkInstance, vkPD, vkDevice, InCmdList, vkGIPA,
                                           vkGDPA, handleId, InParameters, contextData);
-        evalCounter = 0;
+        contextData->evalCounter = 0;
 
         return NVSDK_NGX_Result_Success;
     }

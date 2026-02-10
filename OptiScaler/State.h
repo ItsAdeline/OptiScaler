@@ -146,6 +146,7 @@ class State
     // for realtime changes
     ankerl::unordered_dense::map<unsigned int, bool> changeBackend;
     std::string newBackend = "";
+    std::set<unsigned int> BypassedHandles;
 
     // XeSS debug stuff
     bool xessDebug = false;

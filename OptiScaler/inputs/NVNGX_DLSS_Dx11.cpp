@@ -16,7 +16,6 @@
 
 inline ID3D11Device* D3D11Device = nullptr;
 static ankerl::unordered_dense::map<unsigned int, ContextData<IFeature_Dx11>> Dx11Contexts;
-static inline int evalCounter = 0;
 static inline bool shutdown = false;
 static inline bool _skipInit = false;
 
@@ -447,7 +446,6 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_CreateFeature(ID3D11DeviceContext
     {
         LOG_DEBUG("Get Dx11Device from InDevCtx!");
         InDevCtx->GetDevice(&D3D11Device);
-        evalCounter = 0;
 
         if (!D3D11Device)
         {
@@ -461,6 +459,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_CreateFeature(ID3D11DeviceContext
     if (deviceContext->ModuleLoaded() && deviceContext->Init(D3D11Device, InDevCtx, InParameters))
     {
         State::Instance().currentFeature = deviceContext;
+        Dx11Contexts[handleId].evalCounter = 0;
         return NVSDK_NGX_Result_Success;
     }
 
@@ -596,22 +595,24 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_EvaluateFeature(ID3D11DeviceConte
         }
     }
 
-    evalCounter++;
-    if (Config::Instance()->SkipFirstFrames.has_value() && evalCounter < Config::Instance()->SkipFirstFrames.value())
+    auto activeContext = &Dx11Contexts[handleId];
+
+    activeContext->evalCounter++;
+    if (Config::Instance()->SkipFirstFrames.has_value() &&
+        activeContext->evalCounter < Config::Instance()->SkipFirstFrames.value())
         return NVSDK_NGX_Result_Success;
 
     if (InCallback)
         LOG_INFO("callback exist");
 
     IFeature_Dx11* deviceContext = nullptr;
-    auto activeContext = &Dx11Contexts[handleId];
 
     if (State::Instance().changeBackend[handleId])
     {
         FeatureProvider_Dx11::ChangeFeature(State::Instance().newBackend, D3D11Device, InDevCtx, handleId, InParameters,
                                             activeContext);
 
-        evalCounter = 0;
+        activeContext->evalCounter = 0;
 
         return NVSDK_NGX_Result_Success;
     }

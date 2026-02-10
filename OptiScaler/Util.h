@@ -32,6 +32,7 @@ std::filesystem::path ExePath();
 std::filesystem::path DllPath();
 std::optional<std::filesystem::path> NvngxPath();
 double MillisecondsNow();
+void BufferedSleep(int ms);
 
 HWND GetProcessWindow();
 bool GetDLLVersion(std::wstring dllPath, version_t* versionOut);

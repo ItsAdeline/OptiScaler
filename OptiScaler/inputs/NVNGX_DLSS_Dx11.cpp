@@ -502,7 +502,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_ReleaseFeature(NVSDK_NGX_Handle* 
         if (!shutdown)
         {
             LOG_TRACE("sleeping for 500ms before reset()!");
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            Util::BufferedSleep(500);
         }
 
         if (deviceContext == State::Instance().currentFeature)
@@ -516,7 +516,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_ReleaseFeature(NVSDK_NGX_Handle* 
         if (!shutdown && Config::Instance()->Dx11DelayedInit.value_or_default())
         {
             LOG_TRACE("sleeping for 500ms after reset()!");
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            Util::BufferedSleep(500);
         }
     }
 

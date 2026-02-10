@@ -3,23 +3,30 @@
 #include "SysUtils.h"
 
 #include <atomic>
-#include <mutex>
+#include <shared_mutex>
 #include <chrono>
+#include <thread>
 
 class OwnedMutex
 {
   private:
-    std::timed_mutex mtx;
+    std::shared_mutex mtx;
     std::atomic<uint32_t> owner { 0 }; // don't use 0
 
   public:
     bool lock(uint32_t _owner, uint32_t timeout_ms = 100)
     {
-        if (mtx.try_lock_for(std::chrono::milliseconds(timeout_ms)))
+        auto start = std::chrono::steady_clock::now();
+        while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(timeout_ms))
         {
-            owner.store(_owner, std::memory_order_release);
-            return true;
+            if (mtx.try_lock())
+            {
+                owner.store(_owner, std::memory_order_release);
+                return true;
+            }
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
         }
+        
         LOG_WARN("lock timeout! current_owner: {}, _owner: {}", owner.load(), _owner);
         return false;
     }

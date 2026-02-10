@@ -136,8 +136,16 @@ bool FeatureProvider_Dx11::ChangeFeature(std::string upscalerName, ID3D11Device*
             contextData->createParams->Set(NVSDK_NGX_Parameter_OutHeight, dc->DisplayHeight());
             contextData->createParams->Set(NVSDK_NGX_Parameter_PerfQualityValue, dc->PerfQualityValue());
 
-            LOG_TRACE("sleeping before reset of current feature for 1000ms");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            if (State::Instance().gameQuirks & GameQuirk::FastFeatureReset)
+            {
+                LOG_DEBUG("sleeping before reset of current feature for 100ms (Fast Feature Reset)");
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            else
+            {
+                LOG_DEBUG("sleeping before reset of current feature for 1000ms");
+                Util::BufferedSleep(1000);
+            }
 
             contextData->feature.reset();
             contextData->feature = nullptr;
@@ -186,7 +194,7 @@ bool FeatureProvider_Dx11::ChangeFeature(std::string upscalerName, ID3D11Device*
         if (Config::Instance()->Dx11DelayedInit.value_or_default())
         {
             LOG_TRACE("sleeping after new Init of new feature for 1000ms");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            Util::BufferedSleep(1000);
         }
 
         contextData->changeBackendCounter = 0;

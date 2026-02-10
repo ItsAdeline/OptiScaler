@@ -129,11 +129,11 @@ sl::Result StreamlineHooks::hkslInit(sl::Preferences* pref, uint64_t sdkVersion)
     if (pref->engine == sl::EngineType::eUnreal)
         State::Instance().gameQuirks |= GameQuirk::ForceUnrealEngine;
 
-    // bool hookSetTag =
-    //     (State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG);
+    bool hookSetTag =
+        (State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG);
 
-    // if (hookSetTag)
-    //     pref->flags &= ~(sl::PreferenceFlags::eAllowOTA | sl::PreferenceFlags::eLoadDownloadedPlugins);
+    if (hookSetTag)
+        pref->flags &= ~(sl::PreferenceFlags::eAllowOTA | sl::PreferenceFlags::eLoadDownloadedPlugins);
 
     return o_slInit(*pref, sdkVersion);
 }
@@ -244,7 +244,7 @@ sl::Result StreamlineHooks::hkslEvaluateFeature(sl::Feature feature, const sl::F
                                                 const sl::BaseStructure** inputs, uint32_t numInputs,
                                                 sl::CommandBuffer* cmdBuffer)
 {
-    LOG_DEBUG("frameIndex: {}", static_cast<uint32_t>(frame));
+    LOG_DEBUG("frameIndex: {}, feature: {}", static_cast<uint32_t>(frame), (uint32_t)feature);
 
     if (State::Instance().activeFgInput == FGInput::DLSSG && numInputs > 0 && inputs != nullptr)
     {
@@ -269,6 +269,9 @@ sl::Result StreamlineHooks::hkslEvaluateFeature(sl::Feature feature, const sl::F
         }
     }
 
+    if (State::Instance().activeFgInput == FGInput::DLSSG && feature == sl::kFeatureDLSS_G)
+        return sl::Result::eOk;
+
     auto result = o_slEvaluateFeature(feature, frame, inputs, numInputs, cmdBuffer);
     return result;
 }
@@ -277,6 +280,10 @@ sl::Result StreamlineHooks::hkslAllocateResources(sl::CommandBuffer* cmdBuffer, 
                                                   const sl::ViewportHandle& viewport)
 {
     LOG_FUNC();
+
+    if (State::Instance().activeFgInput == FGInput::DLSSG && feature == sl::kFeatureDLSS_G)
+        return sl::Result::eOk;
+
     auto result = o_slAllocateResources(cmdBuffer, feature, viewport);
     return result;
 }
@@ -631,22 +638,30 @@ sl::Result StreamlineHooks::hkslDLSSGSetOptions(const sl::ViewportHandle& viewpo
             ReflexHooks::setDlssgDetectedState(false);
         }
     }
-    // else
-    //{
-    //     if (State::Instance().currentFGSwapchain != nullptr && Config::Instance()->FGEnabled.value_or_default())
-    //     {
-    //         if (newOptions.mode == sl::DLSSGMode::eOn)
-    //         {
-    //             if (!State::Instance().currentFG->IsActive())
-    //                 State::Instance().currentFG->Activate();
-    //         }
-    //         else
-    //         {
-    //             if (State::Instance().currentFG->IsActive())
-    //                 State::Instance().currentFG->Deactivate();
-    //         }
-    //     }
-    // }
+
+    if (State::Instance().activeFgInput == FGInput::DLSSG)
+    {
+        static sl::DLSSGMode lastMode = sl::DLSSGMode::eCount;
+
+        if (State::Instance().currentFG != nullptr && lastMode != newOptions.mode)
+        {
+            lastMode = newOptions.mode;
+
+            if (newOptions.mode == sl::DLSSGMode::eOn)
+            {
+                if (!State::Instance().currentFG->IsActive())
+                    State::Instance().currentFG->Activate();
+            }
+            else
+            {
+                if (State::Instance().currentFG->IsActive())
+                    State::Instance().currentFG->Deactivate();
+            }
+        }
+
+        LOG_TRACE("DLSSG Modified Mode (Bypassed): {}", magic_enum::enum_name(newOptions.mode));
+        return sl::Result::eOk;
+    }
 
     LOG_TRACE("DLSSG Modified Mode: {}", magic_enum::enum_name(newOptions.mode));
 
@@ -656,6 +671,26 @@ sl::Result StreamlineHooks::hkslDLSSGSetOptions(const sl::ViewportHandle& viewpo
 sl::Result StreamlineHooks::hkslDLSSGGetState(const sl::ViewportHandle& viewport, sl::DLSSGState& state,
                                               const sl::DLSSGOptions* options)
 {
+    if (State::Instance().activeFgInput == FGInput::DLSSG)
+    {
+        state.status = sl::DLSSGStatus::eOk;
+        state.estimatedVRAMUsageInBytes = static_cast<uint64_t>(256 * 1024) * 1024;
+        state.minWidthOrHeight = 0;
+        state.numFramesToGenerateMax = 1;
+        state.bIsVsyncSupportAvailable = sl::Boolean::eTrue;
+
+        auto fg = State::Instance().currentFG;
+        if (fg != nullptr && fg->IsActive() && !fg->IsPaused())
+            state.numFramesActuallyPresented = 2;
+        else
+            state.numFramesActuallyPresented = 1;
+
+        LOG_DEBUG("Bypassed DLSSGGetState - Status: {}, numFramesActuallyPresented: {}",
+                  magic_enum::enum_name(state.status), state.numFramesActuallyPresented);
+
+        return sl::Result::eOk;
+    }
+
     auto result = o_slDLSSGGetState(viewport, state, options);
 
     auto& s = State::Instance();
@@ -673,10 +708,10 @@ sl::Result StreamlineHooks::hkslDLSSGGetState(const sl::ViewportHandle& viewport
     }
     else
     {
-            state.numFramesActuallyPresented = 1;
+        state.numFramesActuallyPresented = 1;
     }
 
-        state.numFramesToGenerateMax = 1;
+    state.numFramesToGenerateMax = 1;
 
     LOG_DEBUG("Status: {}, numFramesActuallyPresented: {}", magic_enum::enum_name(state.status),
               state.numFramesActuallyPresented);

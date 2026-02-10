@@ -244,6 +244,9 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
         _frameCounter++;
         State::Instance().frameCount = _frameCounter;
+
+        if (State::Instance().activeFgInput == FGInput::DLSSG || State::Instance().activeFgInput == FGInput::Nukems)
+            State::Instance().slFGInputs.markPresent(_frameCounter);
     }
 
     LOG_DEBUG("Calling original present");
@@ -506,7 +509,7 @@ HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::SetFullscreenState(BOOL Fullsc
 #ifdef USE_LOCAL_MUTEX
         // dlssg calls this from present it seems
         // don't try to get a mutex when present owns it while dlssg mod is enabled
-        if (!(_localMutex.getOwner() == 4 && Config::Instance()->FGInput.value_or_default() == FGInput::Nukems))
+        if (!(_localMutex.getOwner() == 4 && (State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG)))
             OwnedLockGuard lock(_localMutex, 3);
 #endif
         if (Config::Instance()->FGUseMutexForSwapchain.value_or_default())
@@ -560,7 +563,7 @@ HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::ResizeBuffers(UINT BufferCount
 #ifdef USE_LOCAL_MUTEX
     // dlssg calls this from present it seems
     // don't try to get a mutex when present owns it while dlssg mod is enabled
-    if (!(_localMutex.getOwner() == 4 && Config::Instance()->FGInput.value_or_default() == FGInput::Nukems))
+    if (!(_localMutex.getOwner() == 4 && (State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG)))
         OwnedLockGuard lock(_localMutex, 1);
 #endif
 
@@ -868,7 +871,7 @@ HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::ResizeBuffers1(UINT BufferCoun
 #ifdef USE_LOCAL_MUTEX
     // dlssg calls this from present it seems
     // don't try to get a mutex when present owns it while dlssg mod is enabled
-    if (!(_localMutex.getOwner() == 4 && Config::Instance()->FGInput.value_or_default() == FGInput::Nukems))
+    if (!(_localMutex.getOwner() == 4 && (State::Instance().activeFgInput == FGInput::Nukems || State::Instance().activeFgInput == FGInput::DLSSG)))
         OwnedLockGuard lock(_localMutex, 2);
 #endif
 

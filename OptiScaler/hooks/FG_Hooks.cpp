@@ -856,6 +856,9 @@ HRESULT FGHooks::FGPresent(void* This, UINT SyncInterval, UINT Flags, const DXGI
     {
         State::Instance().FGLastFrame++;
 
+        if (State::Instance().activeFgInput == FGInput::DLSSG || State::Instance().activeFgInput == FGInput::Nukems)
+            State::Instance().slFGInputs.markPresent(State::Instance().FGLastFrame);
+
         double ftDelta = 0.0f;
         auto now = Util::MillisecondsNow();
 

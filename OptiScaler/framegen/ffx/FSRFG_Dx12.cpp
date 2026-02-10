@@ -306,12 +306,6 @@ bool FSRFG_Dx12::Dispatch()
 
     LOG_DEBUG("_frameCount: {}, willDispatchFrame: {}, fIndex: {}", _frameCount, willDispatchFrame, fIndex);
 
-    if (!ReadyToDispatch(fIndex))
-    {
-        LOG_WARN("Depth or Velocity is not ready, skipping");
-        return false;
-    }
-
     ffxConfigureDescFrameGeneration fgConfig = {};
     fgConfig.header.type = FFX_API_CONFIGURE_DESC_TYPE_FRAMEGENERATION;
 
@@ -541,6 +535,10 @@ bool FSRFG_Dx12::Dispatch()
             _waitingExecute[fIndex] = true;
             dispatchResult = ExecuteCommandList(fIndex);
         }
+        else
+        {
+            LOG_ERROR("D3D12_Dispatch failed: {:X}", (UINT) retCode);
+        }
     }
 
     if (config->FGUseMutexForSwapchain.value_or_default() && Mutex.getOwner() == 1)
@@ -730,11 +728,17 @@ bool FSRFG_Dx12::CreateSwapchain(IDXGIFactory* factory, ID3D12CommandQueue* cmdQ
     if (!CheckForRealObject(__FUNCTION__, cmdQueue, (IUnknown**) &realQueue))
         realQueue = cmdQueue;
 
+    DXGI_SWAP_CHAIN_DESC localDesc = *desc;
+    localDesc.BufferCount = std::max(3U, localDesc.BufferCount);
+    localDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    localDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    localDesc.Flags |= 0x800; // DXGI_SWAP_CHAIN_FLAG_ALLOW_UNORDERED_ACCESS
+
     ffxCreateContextDescFrameGenerationSwapChainNewDX12 createSwapChainDesc {};
     createSwapChainDesc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_NEW_DX12;
     createSwapChainDesc.dxgiFactory = realFactory;
     createSwapChainDesc.gameQueue = realQueue;
-    createSwapChainDesc.desc = desc;
+    createSwapChainDesc.desc = &localDesc;
     createSwapChainDesc.swapchain = (IDXGISwapChain4**) swapChain;
 
     auto result = FfxApiProxy::D3D12_CreateContext(&_swapChainContext, &createSwapChainDesc.header, nullptr);
@@ -777,13 +781,19 @@ bool FSRFG_Dx12::CreateSwapchain1(IDXGIFactory* factory, ID3D12CommandQueue* cmd
     if (!CheckForRealObject(__FUNCTION__, cmdQueue, (IUnknown**) &realQueue))
         realQueue = cmdQueue;
 
+    DXGI_SWAP_CHAIN_DESC1 localDesc = *desc;
+    localDesc.BufferCount = std::max(3U, localDesc.BufferCount);
+    localDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    localDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    localDesc.Flags |= 0x800; // DXGI_SWAP_CHAIN_FLAG_ALLOW_UNORDERED_ACCESS
+
     ffxCreateContextDescFrameGenerationSwapChainForHwndDX12 createSwapChainDesc {};
     createSwapChainDesc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_FOR_HWND_DX12;
     createSwapChainDesc.fullscreenDesc = pFullscreenDesc;
     createSwapChainDesc.hwnd = hwnd;
     createSwapChainDesc.dxgiFactory = realFactory;
     createSwapChainDesc.gameQueue = realQueue;
-    createSwapChainDesc.desc = desc;
+    createSwapChainDesc.desc = &localDesc;
     createSwapChainDesc.swapchain = (IDXGISwapChain4**) swapChain;
 
     auto result = FfxApiProxy::D3D12_CreateContext(&_swapChainContext, &createSwapChainDesc.header, nullptr);

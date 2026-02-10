@@ -62,100 +62,107 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
         LOG_DEBUG("SyncInterval: {}, Flags: {:X}, Frametime: {:0.3f} ms", SyncInterval, Flags, ftDelta);
 
-        // Update swapchain info evey frame
-        if (pSwapChain->GetDesc(&State::Instance().currentSwapchainDesc) != S_OK)
-            LOG_WARN("Can't get swapchain desc!");
-    }
-
-    ID3D11Device* device = nullptr;
-    ID3D12Device* device12 = nullptr;
-    ID3D12CommandQueue* cq = nullptr;
-
-    // try to obtain directx objects and find the path
-    if (pDevice->QueryInterface(IID_PPV_ARGS(&device)) == S_OK)
-    {
-        device->Release();
-
-        if (!_dx11Device)
-            LOG_DEBUG("D3D11Device captured");
-
-        _dx11Device = true;
-        State::Instance().swapchainApi = DX11;
-        State::Instance().currentD3D11Device = device;
-
-        if (!State::Instance().DeviceAdapterNames.contains(device))
+        // Update swapchain info if changed
+        if (State::Instance().SCchanged)
         {
-            IDXGIDevice* dxgiDevice = nullptr;
-            auto qResult = device->QueryInterface(IID_PPV_ARGS(&dxgiDevice));
-
-            if (qResult == S_OK)
-            {
-                IDXGIAdapter* dxgiAdapter = nullptr;
-                qResult = dxgiDevice->GetAdapter(&dxgiAdapter);
-
-                if (qResult == S_OK)
-                {
-                    ScopedSkipSpoofing skipSpoofing {};
-
-                    std::wstring szName;
-                    DXGI_ADAPTER_DESC desc {};
-
-                    if (dxgiAdapter->GetDesc(&desc) == S_OK)
-                    {
-                        szName = desc.Description;
-                        auto adapterDesc = wstring_to_string(szName);
-                        LOG_INFO("Adapter Desc: {}", adapterDesc);
-                        State::Instance().DeviceAdapterNames[device] = adapterDesc;
-                    }
-                    else
-                    {
-                        LOG_ERROR("GetDesc: {:X}", (UINT) qResult);
-                    }
-                }
-                else
-                {
-                    LOG_ERROR("GetAdapter: {:X}", (UINT) qResult);
-                }
-
-                if (dxgiAdapter != nullptr)
-                    dxgiAdapter->Release();
-            }
-            else
-            {
-                LOG_ERROR("QueryInterface: {:X}", (UINT) qResult);
-            }
-
-            if (dxgiDevice != nullptr)
-                dxgiDevice->Release();
+            if (pSwapChain->GetDesc(&State::Instance().currentSwapchainDesc) != S_OK)
+                LOG_WARN("Can't get swapchain desc!");
+            
+            State::Instance().SCchanged = false;
         }
     }
-    else if (pDevice->QueryInterface(IID_PPV_ARGS(&cq)) == S_OK)
+
+    if (State::Instance().swapchainApi == API::NotSelected)
     {
-        cq->Release();
+        ID3D11Device* device = nullptr;
+        ID3D12CommandQueue* cq = nullptr;
 
-        if (!_dx12Device)
-            LOG_DEBUG("D3D12CommandQueue captured");
-
-        ID3D12CommandQueue* realQueue = nullptr;
-        if (Util::CheckForRealObject(__FUNCTION__, cq, (IUnknown**) &realQueue))
-            cq = realQueue;
-
-        State::Instance().swapchainApi = DX12;
-
-        if (State::Instance().currentCommandQueue == nullptr)
-            State::Instance().currentCommandQueue = cq;
-
-        if (cq->GetDevice(IID_PPV_ARGS(&device12)) == S_OK)
+        if (pDevice->QueryInterface(IID_PPV_ARGS(&device)) == S_OK)
         {
-            device12->Release();
-
-            if (!_dx12Device)
-                LOG_DEBUG("D3D12Device captured");
+            _dx11Device = true;
+            State::Instance().swapchainApi = DX11;
+            State::Instance().currentD3D11Device = device;
+            
+            // Check adapter (once)
+            if (!State::Instance().DeviceAdapterNames.contains(device))
+            {
+                 IDXGIDevice* dxgiDevice = nullptr;
+                 if (device->QueryInterface(IID_PPV_ARGS(&dxgiDevice)) == S_OK)
+                 {
+                     IDXGIAdapter* dxgiAdapter = nullptr;
+                     if (dxgiDevice->GetAdapter(&dxgiAdapter) == S_OK)
+                     {
+                         ScopedSkipSpoofing skipSpoofing {};
+                         DXGI_ADAPTER_DESC desc {};
+                         if (dxgiAdapter->GetDesc(&desc) == S_OK)
+                         {
+                             auto adapterDesc = wstring_to_string(desc.Description);
+                             LOG_INFO("D3D11 Adapter: {}", adapterDesc);
+                             State::Instance().DeviceAdapterNames[device] = adapterDesc;
+                         }
+                         dxgiAdapter->Release();
+                     }
+                     dxgiDevice->Release();
+                 }
+            }
+            device->Release();
+            LOG_DEBUG("D3D11Device captured");
+        }
+        else if (pDevice->QueryInterface(IID_PPV_ARGS(&cq)) == S_OK)
+        {
+            ID3D12CommandQueue* realQueue = nullptr;
+            if (Util::CheckForRealObject(__FUNCTION__, cq, (IUnknown**) &realQueue))
+                cq = realQueue;
 
             _dx12Device = true;
+            State::Instance().swapchainApi = DX12;
+            
+            if (State::Instance().currentCommandQueue == nullptr)
+                State::Instance().currentCommandQueue = cq;
 
-            State::Instance().currentD3D12Device = device12;
-            D3D12Hooks::HookDevice(device12);
+            ID3D12Device* device12 = nullptr;
+            if (cq->GetDevice(IID_PPV_ARGS(&device12)) == S_OK)
+            {
+                State::Instance().currentD3D12Device = device12;
+                D3D12Hooks::HookDevice(device12);
+                device12->Release();
+                LOG_DEBUG("D3D12Device captured");
+            }
+            
+            if (cq && cq != realQueue) cq->Release();
+            LOG_DEBUG("D3D12CommandQueue captured");
+        }
+    }
+    // API known, ensure devices are captured if missing (rare case of reset/lost device)
+    else if (State::Instance().swapchainApi == API::DX11 && State::Instance().currentD3D11Device == nullptr)
+    {
+        ID3D11Device* device = nullptr;
+        if (pDevice->QueryInterface(IID_PPV_ARGS(&device)) == S_OK)
+        {
+            State::Instance().currentD3D11Device = device;
+            device->Release();
+        }
+    }
+    else if (State::Instance().swapchainApi == API::DX12 && State::Instance().currentD3D12Device == nullptr)
+    {
+        ID3D12CommandQueue* cq = nullptr;
+        if (pDevice->QueryInterface(IID_PPV_ARGS(&cq)) == S_OK)
+        {
+             ID3D12CommandQueue* realQueue = nullptr;
+             if (Util::CheckForRealObject(__FUNCTION__, cq, (IUnknown**) &realQueue))
+                cq = realQueue;
+
+             if (State::Instance().currentCommandQueue == nullptr)
+                State::Instance().currentCommandQueue = cq;
+
+             ID3D12Device* device12 = nullptr;
+             if (cq->GetDevice(IID_PPV_ARGS(&device12)) == S_OK)
+             {
+                 State::Instance().currentD3D12Device = device12;
+                 D3D12Hooks::HookDevice(device12);
+                 device12->Release();
+             }
+             if (cq && cq != realQueue) cq->Release();
         }
     }
 
@@ -168,16 +175,16 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
     // Upscaler GPU time computation
     if (willPresent && (fg == nullptr || !fg->IsActive() || fg->IsPaused()))
     {
-        if (cq != nullptr)
+        if (State::Instance().swapchainApi == API::DX12 && State::Instance().currentCommandQueue != nullptr)
         {
-            UpscalerTimeDx12::ReadUpscalingTime(cq);
+            UpscalerTimeDx12::ReadUpscalingTime(State::Instance().currentCommandQueue);
         }
-        else if (device != nullptr)
+        else if (State::Instance().swapchainApi == API::DX11 && State::Instance().currentD3D11Device != nullptr)
         {
             ID3D11DeviceContext* context = nullptr;
-            device->GetImmediateContext(&context);
+            State::Instance().currentD3D11Device->GetImmediateContext(&context);
             UpscalerTimeDx11::ReadUpscalingTime(context);
-            context->Release();
+            if (context) context->Release();
         }
     }
 
@@ -244,9 +251,6 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
         _frameCounter++;
         State::Instance().frameCount = _frameCounter;
-
-        if (State::Instance().activeFgInput == FGInput::DLSSG || State::Instance().activeFgInput == FGInput::Nukems)
-            State::Instance().slFGInputs.markPresent(_frameCounter);
     }
 
     LOG_DEBUG("Calling original present");
@@ -296,6 +300,8 @@ WrappedIDXGISwapChain4::WrappedIDXGISwapChain4(IDXGISwapChain* real, IUnknown* p
     auto refCount = _real->Release();
 
     _device2 = _device;
+
+    State::Instance().SCchanged = true;
 
     LOG_INFO("{} created, real: {:X}, refCount: {}", _id, (UINT64) real, refCount);
 }

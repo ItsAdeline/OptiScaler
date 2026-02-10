@@ -64,38 +64,38 @@ inline HMODULE d3d12AgilityModule = nullptr;
 inline HMODULE slInterposerModule = nullptr;
 inline DWORD processId;
 
-#define LOG_TRACE(msg, ...) spdlog::trace(__FUNCTION__ " " msg, ##__VA_ARGS__)
+#define LOG_TRACE(msg, ...) do { if (spdlog::should_log(spdlog::level::trace)) spdlog::trace(__FUNCTION__ " " msg, ##__VA_ARGS__); } while(0)
 
-#define LOG_DEBUG(msg, ...) spdlog::debug(__FUNCTION__ " " msg, ##__VA_ARGS__)
+#define LOG_DEBUG(msg, ...) do { if (spdlog::should_log(spdlog::level::debug)) spdlog::debug(__FUNCTION__ " " msg, ##__VA_ARGS__); } while(0)
 
 #ifdef DETAILED_DEBUG_LOGS
-#define LOG_DEBUG_ONLY(msg, ...) spdlog::debug(__FUNCTION__ " " msg, ##__VA_ARGS__)
+#define LOG_DEBUG_ONLY(msg, ...) do { if (spdlog::should_log(spdlog::level::debug)) spdlog::debug(__FUNCTION__ " " msg, ##__VA_ARGS__); } while(0)
 #else
-#define LOG_DEBUG_ONLY(msg, ...)
+#define LOG_DEBUG_ONLY(msg, ...) do { } while(0)
 #endif
 
 #ifdef LOG_ASYNC
-#define LOG_DEBUG_ASYNC(msg, ...) spdlog::debug(__FUNCTION__ " " msg, ##__VA_ARGS__)
+#define LOG_DEBUG_ASYNC(msg, ...) do { if (spdlog::should_log(spdlog::level::debug)) spdlog::debug(__FUNCTION__ " " msg, ##__VA_ARGS__); } while(0)
 #else
-#define LOG_DEBUG_ASYNC(msg, ...)
+#define LOG_DEBUG_ASYNC(msg, ...) do { } while(0)
 #endif
 
-#define LOG_INFO(msg, ...) spdlog::info(__FUNCTION__ " " msg, ##__VA_ARGS__)
+#define LOG_INFO(msg, ...) do { if (spdlog::should_log(spdlog::level::info)) spdlog::info(__FUNCTION__ " " msg, ##__VA_ARGS__); } while(0)
 
-#define LOG_WARN(msg, ...) spdlog::warn(__FUNCTION__ " " msg, ##__VA_ARGS__)
+#define LOG_WARN(msg, ...) do { if (spdlog::should_log(spdlog::level::warn)) spdlog::warn(__FUNCTION__ " " msg, ##__VA_ARGS__); } while(0)
 
-#define LOG_ERROR(msg, ...) spdlog::error(__FUNCTION__ " " msg, ##__VA_ARGS__)
+#define LOG_ERROR(msg, ...) do { if (spdlog::should_log(spdlog::level::err)) spdlog::error(__FUNCTION__ " " msg, ##__VA_ARGS__); } while(0)
 
-#define LOG_FUNC() spdlog::trace(__FUNCTION__)
+#define LOG_FUNC() do { if (spdlog::should_log(spdlog::level::trace)) spdlog::trace(__FUNCTION__); } while(0)
 
-#define LOG_FUNC_RESULT(result) spdlog::trace(__FUNCTION__ " result: {0:X}", (UINT64) result)
+#define LOG_FUNC_RESULT(result) do { if (spdlog::should_log(spdlog::level::trace)) spdlog::trace(__FUNCTION__ " result: {0:X}", (UINT64) result); } while(0)
 
 // #define TRACKING_LOGS
 
 #ifdef TRACKING_LOGS
-#define LOG_TRACK(msg, ...) spdlog::debug(__FUNCTION__ " [RT] " msg, ##__VA_ARGS__)
+#define LOG_TRACK(msg, ...) do { if (spdlog::should_log(spdlog::level::debug)) spdlog::debug(__FUNCTION__ " [RT] " msg, ##__VA_ARGS__); } while(0)
 #else
-#define LOG_TRACK(msg, ...)
+#define LOG_TRACK(msg, ...) do { } while(0)
 #endif
 
 struct feature_version

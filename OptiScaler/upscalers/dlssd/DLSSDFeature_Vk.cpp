@@ -40,7 +40,7 @@ bool DLSSDFeatureVk::Init(VkInstance InInstance, VkPhysicalDevice InPD, VkDevice
                 NVNGXProxy::VULKAN_ReleaseFeature() != nullptr && NVNGXProxy::VULKAN_EvaluateFeature() != nullptr;
 
             // delay between init and create feature
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            Util::BufferedSleep(500);
         }
 
         LOG_INFO("Creating DLSSD feature");

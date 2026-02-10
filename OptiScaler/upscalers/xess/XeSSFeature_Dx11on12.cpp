@@ -1,6 +1,7 @@
 #pragma once
 #include <pch.h>
 #include <Config.h>
+#include <Util.h>
 
 #include "XeSSFeature_Dx11on12.h"
 
@@ -103,7 +104,7 @@ bool XeSSFeatureDx11on12::Evaluate(ID3D11DeviceContext* InDeviceContext, NVSDK_N
         if (Config::Instance()->Dx11DelayedInit.value_or(false))
         {
             LOG_TRACE("sleeping after XeSSContext creation for 1500ms");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            Util::BufferedSleep(1500);
         }
 
         OutputScaler = std::make_unique<OS_Dx12>("Output Scaling", _dx11on12Device, (TargetWidth() < DisplayWidth()));

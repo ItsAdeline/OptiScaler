@@ -1,5 +1,6 @@
 #include <pch.h>
 #include <Config.h>
+#include <Util.h>
 
 #include "FSR2Feature_Dx11On12.h"
 
@@ -92,7 +93,7 @@ bool FSR2FeatureDx11on12::Evaluate(ID3D11DeviceContext* InDeviceContext, NVSDK_N
         if (Config::Instance()->Dx11DelayedInit.value_or_default())
         {
             LOG_TRACE("sleeping after FSRContext creation for 1500ms");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            Util::BufferedSleep(1500);
         }
 
         OutputScaler = std::make_unique<OS_Dx12>("Output Scaling", _dx11on12Device, (TargetWidth() < DisplayWidth()));

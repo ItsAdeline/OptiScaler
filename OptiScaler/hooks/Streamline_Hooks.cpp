@@ -680,7 +680,7 @@ sl::Result StreamlineHooks::hkslDLSSGGetState(const sl::ViewportHandle& viewport
         state.bIsVsyncSupportAvailable = sl::Boolean::eTrue;
 
         auto fg = State::Instance().currentFG;
-        if (fg != nullptr && fg->IsActive() && !fg->IsPaused() && fg->ReadyToDispatch())
+        if (fg != nullptr && fg->IsActive() && !fg->IsPaused())
             state.numFramesActuallyPresented = 2;
         else
             state.numFramesActuallyPresented = 1;

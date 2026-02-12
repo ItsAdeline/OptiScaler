@@ -101,7 +101,6 @@ class IFGFeature_Dx12 : public virtual IFGFeature
     ID3D12CommandQueue* GetCommandQueue();
 
     bool HasResource(FG_ResourceType type, int index = -1) override final;
-    bool ReadyToDispatch(int index = -1) override final;
 
     IFGFeature_Dx12() = default;
     virtual ~IFGFeature_Dx12() { DestroyCopyCmdList(); }

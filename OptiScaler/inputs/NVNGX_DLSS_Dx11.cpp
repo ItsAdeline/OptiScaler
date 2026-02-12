@@ -598,9 +598,6 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_EvaluateFeature(ID3D11DeviceConte
     auto activeContext = &Dx11Contexts[handleId];
 
     activeContext->evalCounter++;
-    if (activeContext->feature)
-        activeContext->feature->SetEvalCounter(activeContext->evalCounter);
-
     if (Config::Instance()->SkipFirstFrames.has_value() &&
         activeContext->evalCounter < Config::Instance()->SkipFirstFrames.value())
         return NVSDK_NGX_Result_Success;
@@ -649,25 +646,11 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_EvaluateFeature(ID3D11DeviceConte
         return NVSDK_NGX_Result_Success;
     }
 
-    if (activeContext->evalCounter > 60 && !deviceContext->IsInited() &&
-        (deviceContext->Name() == "XeSS" || deviceContext->Name() == "DLSS" || deviceContext->Name() == "FSR3 w/Dx12"))
-    {
-        if (activeContext->evalCounter > 120)
-            State::Instance().gameQuirks |= GameQuirk::FastFeatureReset;
-
-        State::Instance().newBackend = "fsr22";
-        State::Instance().changeBackend[handleId] = true;
-        return NVSDK_NGX_Result_Success;
-    }
-
     UpscalerTimeDx11::UpscaleStart(InDevCtx);
 
-    if (!deviceContext->Evaluate(InDevCtx, InParameters) && activeContext->evalCounter > 60 && !deviceContext->IsInited() &&
+    if (!deviceContext->Evaluate(InDevCtx, InParameters) && !deviceContext->IsInited() &&
         (deviceContext->Name() == "XeSS" || deviceContext->Name() == "DLSS" || deviceContext->Name() == "FSR3 w/Dx12"))
     {
-        if (activeContext->evalCounter > 120)
-            State::Instance().gameQuirks |= GameQuirk::FastFeatureReset;
-
         State::Instance().newBackend = "fsr22";
         State::Instance().changeBackend[handleId] = true;
     }

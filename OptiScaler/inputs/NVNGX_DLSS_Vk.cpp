@@ -951,9 +951,6 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_EvaluateFeature(VkCommandBuffer 
     auto contextData = &VkContexts[handleId];
 
     contextData->evalCounter++;
-    if (contextData->feature)
-        contextData->feature->SetEvalCounter(contextData->evalCounter);
-
     if (Config::Instance()->SkipFirstFrames.has_value() &&
         contextData->evalCounter < Config::Instance()->SkipFirstFrames.value())
         return NVSDK_NGX_Result_Success;
@@ -975,13 +972,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_EvaluateFeature(VkCommandBuffer 
     deviceContext = VkContexts[handleId].feature.get();
     State::Instance().currentFeature = deviceContext;
 
-    if (contextData->evalCounter > 60 && !deviceContext->IsInited() && Config::Instance()->VulkanUpscaler.value_or_default() != "fsr22")
+    if (!deviceContext->IsInited() && Config::Instance()->VulkanUpscaler.value_or_default() != "fsr22")
     {
         State::Instance().newBackend = "fsr22";
-
-        if (contextData->evalCounter > 120)
-            State::Instance().gameQuirks |= GameQuirk::FastFeatureReset;
-
         State::Instance().changeBackend[handleId] = true;
         return NVSDK_NGX_Result_Success;
     }

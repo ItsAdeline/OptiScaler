@@ -48,11 +48,6 @@ bool IFGFeature_Dx12::HasResource(FG_ResourceType type, int index)
     return _frameResources[index].contains(type);
 }
 
-bool IFGFeature_Dx12::ReadyToDispatch(int index)
-{
-    return IFGFeature::ReadyToDispatch(index);
-}
-
 ID3D12GraphicsCommandList* IFGFeature_Dx12::GetUICommandList(int index)
 {
     if (index < 0)

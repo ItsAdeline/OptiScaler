@@ -64,15 +64,7 @@ bool IFGFeature::IsResourceReady(FG_ResourceType type, int index)
     if (index < 0)
         index = GetIndex();
 
-    return _resourceReady[index].contains(type) && _resourceReady[index].at(type);
-}
-
-bool IFGFeature::ReadyToDispatch(int index)
-{
-    if (index < 0)
-        index = GetIndex();
-
-    return IsResourceReady(FG_ResourceType::Depth, index) && IsResourceReady(FG_ResourceType::Velocity, index);
+    return _resourceReady[index].contains(type);
 }
 
 bool IFGFeature::WaitingExecution(int index)

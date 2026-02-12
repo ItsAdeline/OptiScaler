@@ -306,7 +306,10 @@ bool FSRFG_Dx12::Dispatch()
 
     LOG_DEBUG("_frameCount: {}, willDispatchFrame: {}, fIndex: {}", _frameCount, willDispatchFrame, fIndex);
 
-    if (!ReadyToDispatch(fIndex))
+    if (!_resourceReady[fIndex].contains(FG_ResourceType::Depth) ||
+        !_resourceReady[fIndex].at(FG_ResourceType::Depth) ||
+        !_resourceReady[fIndex].contains(FG_ResourceType::Velocity) ||
+        !_resourceReady[fIndex].at(FG_ResourceType::Velocity))
     {
         LOG_WARN("Depth or Velocity is not ready, skipping");
         return false;
@@ -575,9 +578,9 @@ ffxReturnCode_t FSRFG_Dx12::DispatchCallback(ffxDispatchDescFrameGeneration* par
 
     // If fg is active but upscaling paused
     if ((state.currentFeature == nullptr && state.activeFgInput == FGInput::Upscaler) || state.FGchanged ||
-        fIndex < 0 || !IsActive() || (state.currentFeature && state.currentFeature->FrameCount() == 0) || !ReadyToDispatch(fIndex))
+        fIndex < 0 || !IsActive() || (state.currentFeature && state.currentFeature->FrameCount() == 0))
     {
-        LOG_WARN("Upscaling paused or resources not ready! frameID: {}", params->frameID);
+        LOG_WARN("Upscaling paused! frameID: {}", params->frameID);
         params->numGeneratedFrames = 0;
     }
 
